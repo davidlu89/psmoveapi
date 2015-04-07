@@ -37,16 +37,21 @@
 #    include <windows.h>
 #endif
 
-#include "opencv2/core/core_c.h"
-#include "opencv2/calib3d/calib3d.hpp"
-#include "opencv2/highgui/highgui_c.h"
-#include "opencv2/imgproc/imgproc_c.h"
+#include <opencv2/core/core.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/calib3d/calib3d.hpp>
+#include <opencv2/highgui/highgui.hpp>
+
+#include "psmove_tracker.h"
 
 #define CAM_TO_USE 0
 #define SPACE_KEY 32
 #define ESC_KEY 27
 #define TEXT_COLOR cvScalar(0xFF, 0xFF, 0xFF, 0)
 #define TEXT_POS cvPoint(20,30)
+#define PATTERN_W 9 // Internal corners
+#define PATTERN_H 6
+#define N_BOARDS 7
 
 #define INTRINSICS_XML "intrinsics.xml"
 #define DISTORTION_XML "distortion.xml"
@@ -57,26 +62,28 @@ void put_text(IplImage* img, const char* text) {
 }
 
 int main(int arg, char** args) {
-	int board_w = 4; // Board width in squares
-	int board_h = 7; // Board height
-	int n_boards = 10; // Number of boards
-	int board_n = board_w * board_h;
+    int board_n = PATTERN_W * PATTERN_H;
 	int user_canceled = 0;
-	CvSize board_sz = cvSize(board_w, board_h);
+    CvSize board_sz = cvSize(PATTERN_W, PATTERN_H);
 	CvCapture* capture = cvCreateCameraCapture(CAM_TO_USE);
 
         char *intrinsics_xml = psmove_util_get_file_path(INTRINSICS_XML);
         char *distortion_xml = psmove_util_get_file_path(DISTORTION_XML);
 
 	// Allocate Memory
-	CvMat* image_points = cvCreateMat(n_boards * board_n, 2, CV_32FC1);
-	CvMat* object_points = cvCreateMat(n_boards * board_n, 3, CV_32FC1);
-	CvMat* point_counts = cvCreateMat(n_boards, 1, CV_32SC1);
+    CvMat* image_points = cvCreateMat(N_BOARDS * board_n, 2, CV_32FC1);
+    CvMat* object_points = cvCreateMat(N_BOARDS * board_n, 3, CV_32FC1);
+    CvMat* point_counts = cvCreateMat(N_BOARDS, 1, CV_32SC1);
 	CvMat* intrinsic_matrix = cvCreateMat(3, 3, CV_32FC1);
 	CvMat* distortion_coeffs = cvCreateMat(5, 1, CV_32FC1);
 	IplImage *image;
 
-	CvPoint2D32f corners[board_n];
+    //
+    PSMoveTracker* tracker = psmove_tracker_new();
+    psmove_tracker_set_exposure(tracker, Exposure_HIGH);
+
+	//CvPoint2D32f corners[board_n];
+    CvPoint2D32f *corners = (CvPoint2D32f*)calloc(board_n, sizeof(CvPoint2D32f));
 	int i = 0;
 	int j = 0;
 	for (i = 0; i < board_n; i++)
@@ -88,7 +95,9 @@ int main(int arg, char** args) {
 
 	while (1) {
 		cvWaitKey(10);
-		image = cvQueryFrame(capture);
+        //image = cvQueryFrame(capture);
+        psmove_tracker_update_image(tracker);
+        image = psmove_tracker_get_frame(tracker);
 		if (image)
 			break;
 	}
@@ -99,13 +108,15 @@ int main(int arg, char** args) {
 	IplImage *gray_image2 = cvCreateImage(cvGetSize(image), image->depth, 1);
 	// Capture Corner views loop until we've got n_boards
 	// succesful captures (all corners on the board are found)
-	while (successes < n_boards) {
+    while (successes < N_BOARDS) {
 		int key = cvWaitKey(1);
 		user_canceled = key == ESC_KEY;
 		if (user_canceled)
 			break;
 
-		image = cvQueryFrame(capture); // Get next image
+		//image = cvQueryFrame(capture); // Get next image
+        psmove_tracker_update_image(tracker);
+        image = psmove_tracker_get_frame(tracker);
 		cvCvtColor(image, gray_image1, CV_BGR2GRAY);
 		corner_count = 0;
 		int has_checkBoard = cvCheckChessboard(gray_image1, board_sz);
@@ -120,7 +131,7 @@ int main(int arg, char** args) {
 			cvDrawChessboardCorners(image, board_sz, corners, corner_count, found);
 
 			char text[222];
-			sprintf(text, "capured %d/%d (press 'SPACE' to capture!)", successes, n_boards);
+            sprintf(text, "capured %d/%d (press 'SPACE' to capture!)", successes, N_BOARDS);
 
 			if (corner_count == board_n)
 				put_text(image, text);
@@ -133,8 +144,8 @@ int main(int arg, char** args) {
 				for (i = step, j = 0; j < board_n; ++i, ++j) {
 					CV_MAT_ELEM( *image_points, float, i, 0 ) = corners[j].x;
 					CV_MAT_ELEM( *image_points, float, i, 1 ) = corners[j].y;
-					CV_MAT_ELEM( *object_points, float, i, 0 ) = j / board_w;
-					CV_MAT_ELEM( *object_points, float, i, 1 ) = j % board_w;
+                    CV_MAT_ELEM(*object_points, float, i, 0) = j / PATTERN_W;
+                    CV_MAT_ELEM(*object_points, float, i, 1) = j % PATTERN_W;
 					CV_MAT_ELEM( *object_points, float, i, 2 ) = 0.0f;
 				}
 				CV_MAT_ELEM( *point_counts, int, successes, 0 ) = board_n;
@@ -191,7 +202,9 @@ int main(int arg, char** args) {
 		CvMat *intrinsic = (CvMat*) cvLoad(intrinsics_xml, 0, 0, 0);
 		CvMat *distortion = (CvMat*) cvLoad(distortion_xml, 0, 0, 0);
 
-		image = cvQueryFrame(capture);
+		//image = cvQueryFrame(capture);
+        psmove_tracker_update_image(tracker);
+        image = psmove_tracker_get_frame(tracker);
 
 		// Build the undistort map that we will use for all subsequent frames
 		IplImage* mapx = cvCreateImage(cvGetSize(image), IPL_DEPTH_32F, 1);
@@ -222,7 +235,9 @@ int main(int arg, char** args) {
 			}
 			if (c == ESC_KEY)
 				break;
-			image = cvQueryFrame(capture);
+			//image = cvQueryFrame(capture);
+            psmove_tracker_update_image(tracker);
+            image = psmove_tracker_get_frame(tracker);
 		}
 
 		cvReleaseMat(&intrinsic_matrix);
@@ -241,6 +256,8 @@ int main(int arg, char** args) {
 
         free(intrinsics_xml);
         free(distortion_xml);
+
+        psmove_tracker_free(tracker);
 
 	return 0;
 }

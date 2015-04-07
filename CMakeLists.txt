@@ -295,6 +295,9 @@ if(PSMOVE_BUILD_TRACKER)
         
         #include_directories(${OPENCV_INSTALL_DIR}/include)
         include_directories(${OPENCV_SRC_DIR}/modules/core/include)
+        include_directories(${OPENCV_SRC_DIR}/modules/flann/include)
+        include_directories(${OPENCV_SRC_DIR}/modules/features2d/include)
+        include_directories(${OPENCV_SRC_DIR}/modules/calib3d/include)
         include_directories(${OPENCV_SRC_DIR}/modules/imgproc/include)
         include_directories(${OPENCV_SRC_DIR}/modules/highgui/include)
         
@@ -559,6 +562,13 @@ if(PSMOVE_BUILD_EXAMPLES)
             endif()
             target_link_libraries(${EXAMPLE} psmoveapi psmoveapi_tracker)
         endforeach()
+        
+        if(NOT MSVC)
+            add_executable(tracker_camera_calibration examples/c/tracker_camera_calibration.c)
+        else(NOT MSVC)
+            add_executable(tracker_camera_calibration examples/c/tracker_camera_calibration.c ${PSMOVEAPI_SOURCE_DIR}/external/msvc-support/getopt.c ${PSMOVEAPI_SOURCE_DIR}/external/msvc-support/unistd.c)
+            target_link_libraries(tracker_camera_calibration psmoveapi psmoveapi_tracker ${PSMOVEAPI_TRACKER_REQUIRED_LIBS} opencv_calib3d2411 opencv_features2d2411 opencv_flann2411)
+        endif()
     endif()
 endif()
 
