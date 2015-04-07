@@ -43,7 +43,7 @@ Requirements
 	cmake .. -G "MinGW Makefiles" -DPSMOVE_BUILD_PYTHON_BINDINGS=0 -DPSMOVE_USE_LOCAL_OPENCV=1 -DPSMOVE_USE_MADGWICK_AHRS=1 -DPSMOVE_USE_PS3EYE_DRIVER=1 -DPSMOVE_USE_LOCAL_LIBUSB=1
 	mingw32-make
 
-5. Read WINDOWS_EXTRA for windows-specific information on pairing and connecting the psmove controller and on using the PS3Eye camera.
+5. Read [this Wiki](https://github.com/cboulay/psmove-ue4/wiki) for windows-specific information on pairing and connecting the psmove controller and on using the PS3Eye camera.
 
 6. Start one of the desired test applications
 
