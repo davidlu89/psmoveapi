@@ -184,11 +184,11 @@ void camera_control_set_parameters(CameraControl* cc, int autoE, int autoG, int 
     //autoE... setAutoExposure not defined in ps3eye.h
     ps3eye_set_parameter(cc->eye, PS3EYE_AUTO_GAIN, autoG > 0);
     ps3eye_set_parameter(cc->eye, PS3EYE_AUTO_WHITEBALANCE, autoWB > 0);
-    ps3eye_set_parameter(cc->eye, PS3EYE_EXPOSURE, round((511 * exposure) / 0xFFFF));
-    ps3eye_set_parameter(cc->eye, PS3EYE_GAIN, round((79 * gain) / 0xFFFF));
-    //ps3eye_set_parameter(cc->eye, PS3EYE_REDBALANCE, round((255 * wbRed) / 0xFFFF));
-    //wbGreen... setGreenBalance not defined in ps3eye.h
-    //ps3eye_set_parameter(cc->eye, PS3EYE_BLUEBALANCE, round((255 * wbBlue) / 0xFFFF));
+    ps3eye_set_parameter(cc->eye, PS3EYE_EXPOSURE, round(exposure * 255 / 0xFFFF));
+    ps3eye_set_parameter(cc->eye, PS3EYE_GAIN, round(gain * 63 / 0xFFFF));
+    ps3eye_set_parameter(cc->eye, PS3EYE_REDBALANCE, round(wbRed * 128 / 0xFFFF));
+    ps3eye_set_parameter(cc->eye, PS3EYE_BLUEBALANCE, round(wbBlue * 128 / 0xFFFF));
+    ps3eye_set_parameter(cc->eye, PS3EYE_GREENBALANCE, round(wbGreen * 128 / 0xFFFF));
     //ps3eye_set_parameter(cc->eye, PS3EYE_CONTRAST, contrast);  // Transform unknown.
     //ps3eye_set_parameter(cc->eye, PS3EYE_BRIGHTNESS, brightness);  // Transform unknown.
 

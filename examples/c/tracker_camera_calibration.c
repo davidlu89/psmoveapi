@@ -38,20 +38,23 @@
 #endif
 
 #include <opencv2/core/core.hpp>
+
 #include <opencv2/imgproc/imgproc.hpp>
+
 #include <opencv2/calib3d/calib3d.hpp>
+
 #include <opencv2/highgui/highgui.hpp>
 
 #include "psmove_tracker.h"
 
-#define CAM_TO_USE 0
+//#define CAM_TO_USE 0
 #define SPACE_KEY 32
 #define ESC_KEY 27
 #define TEXT_COLOR cvScalar(0xFF, 0xFF, 0xFF, 0)
 #define TEXT_POS cvPoint(20,30)
 #define PATTERN_W 9 // Internal corners
 #define PATTERN_H 6
-#define N_BOARDS 7
+#define N_BOARDS 10
 
 #define INTRINSICS_XML "intrinsics.xml"
 #define DISTORTION_XML "distortion.xml"
@@ -65,7 +68,7 @@ int main(int arg, char** args) {
     int board_n = PATTERN_W * PATTERN_H;
 	int user_canceled = 0;
     CvSize board_sz = cvSize(PATTERN_W, PATTERN_H);
-	CvCapture* capture = cvCreateCameraCapture(CAM_TO_USE);
+	//CvCapture* capture = cvCreateCameraCapture(CAM_TO_USE);
 
         char *intrinsics_xml = psmove_util_get_file_path(INTRINSICS_XML);
         char *distortion_xml = psmove_util_get_file_path(DISTORTION_XML);
@@ -249,7 +252,7 @@ int main(int arg, char** args) {
 		cvReleaseImage(&mapx);
 		cvReleaseImage(&mapy);
 	}
-	cvReleaseCapture(&capture);
+	//cvReleaseCapture(&capture);
 	cvReleaseImage(&small_image);
 	cvReleaseImage(&gray_image1);
 	cvReleaseImage(&gray_image2);

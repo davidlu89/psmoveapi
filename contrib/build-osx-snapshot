@@ -52,19 +52,21 @@ cd $PSMOVEAPI_CHECKOUT
 # Build OpenCV
 if [ ! -d $OPENCV_INSTALL_DIR ]; then
     if [ ! -d opencv ]; then
-        git clone git://github.com/Itseez/opencv.git
+        curl -L https://github.com/Itseez/opencv/archive/2.4.11.tar.gz -o opencv.tar.gz
+        gunzip -c opencv.tar.gz | tar xopf -
+        rm opencv.tar.gz
+        mv opencv-2.4.11 opencv
     fi
     cd opencv
     rm -rf build
     mkdir -p build
     cd build
-    git checkout --force $OPENCV_TARGET_GIT_TAG
     cmake -DBUILD_SHARED_LIBS=OFF \
           -DBUILD_PERF_TESTS=OFF \
           -DBUILD_TESTS=OFF \
           -DBUILD_DOCS=OFF \
-          -DBUILD_opencv_flann=OFF \
-          -DBUILD_opencv_features2d=OFF \
+          -DBUILD_opencv_flann=ON \
+          -DBUILD_opencv_features2d=ON \
           -DBUILD_opencv_objdetect=OFF \
           -DBUILD_opencv_photo=OFF \
           -DBUILD_opencv_ts=OFF \
@@ -90,10 +92,12 @@ mkdir build
 cd build
 cmake -DPSMOVE_USE_LOCAL_OPENCV=ON \
       -DPSMOVE_USE_LOCAL_LIBUSB=ON \
+      -DPSMOVE_USE_MADGWICK_AHRS=ON \
       -DPSMOVE_USE_PS3EYE_DRIVER=ON \
+      -DPSMOVE_USE_PSEYE=ON \
+      -DPSMOVE_BUILD_TESTS=ON \
       -DPSMOVE_BUILD_TRACKER=ON \
-      -DPSMOVE_BUILD_JAVA_BINDINGS=ON \
-      -DPSMOVE_BUILD_PROCESSING_BINDINGS=ON \
+      -DPSMOVE_BUILD_EXAMPLES=ON \
       -DCMAKE_INSTALL_PREFIX=$PSMOVEAPI_PREFIX ..
 make ${MAKE_ARGS}
 mkdir tmp
