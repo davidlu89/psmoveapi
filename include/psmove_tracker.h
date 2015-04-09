@@ -415,6 +415,9 @@ ADDCALL psmove_tracker_update_image(PSMoveTracker *tracker);
  **/
 ADDAPI int
 ADDCALL psmove_tracker_update(PSMoveTracker *tracker, PSMove *move);
+    
+ADDAPI int
+ADDCALL psmove_tracker_update_cbb(PSMoveTracker *tracker, PSMove *move);
 
 /**
  * \brief Draw debugging information onto the current camera image
@@ -487,6 +490,10 @@ ADDCALL psmove_tracker_get_image(PSMoveTracker *tracker);
 ADDAPI int
 ADDCALL psmove_tracker_get_position(PSMoveTracker *tracker,
         PSMove *move, float *x, float *y, float *radius);
+    
+ADDAPI int
+ADDCALL psmove_tracker_get_location(PSMoveTracker *tracker,
+        PSMove *move, float *xcm, float *ycm, float *zcm);
 
 /**
  * \brief Get the camera image size for the tracker

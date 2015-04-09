@@ -70,6 +70,9 @@ struct _CameraControl {
 
 	IplImage* mapx;
 	IplImage* mapy;
+    
+    float focl_x;
+    float focl_y;
 
         enum PSMove_Bool deinterlace;
 };

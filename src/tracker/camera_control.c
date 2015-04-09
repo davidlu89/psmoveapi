@@ -39,6 +39,9 @@
 
 #include "camera_control_private.h"
 
+/* Default focal length for PS3EYE camera */
+#define DEFAULT_FOCAL_LENGTH 545
+
 #if defined(CAMERA_CONTROL_USE_PS3EYE_DRIVER)
 
 /**
@@ -118,6 +121,9 @@ camera_control_new(int cameraID)
 {
 	CameraControl* cc = (CameraControl*) calloc(1, sizeof(CameraControl));
 	cc->cameraID = cameraID;
+    
+    cc->focl_x = DEFAULT_FOCAL_LENGTH;
+    cc->focl_y = DEFAULT_FOCAL_LENGTH;
 
 #if defined(CAMERA_CONTROL_USE_CL_DRIVER)
 	int w, h;
@@ -212,6 +218,9 @@ camera_control_read_calibration(CameraControl* cc,
         cc->mapy = cvCreateImage(cvSize(width, height), IPL_DEPTH_32F, 1);
 
         cvInitUndistortMap(intrinsic, distortion, cc->mapx, cc->mapy);
+        
+        cc->focl_x = CV_MAT_ELEM(*intrinsic, float, 0, 0);
+        cc->focl_y = CV_MAT_ELEM(*intrinsic, float, 1, 1);
 
         // TODO: Shouldn't we free intrinsic and distortion here?
     } else {

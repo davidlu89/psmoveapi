@@ -43,6 +43,7 @@
 #include "psmove_tracker_private.h"
 
 #include "camera_control.h"
+#include "camera_control_private.h"
 #include "tracker_helpers.h"
 #include "tracker_trace.h"
 
@@ -94,6 +95,9 @@
 /* Only re-use color mappings "younger" than 2 hours */
 #define COLOR_MAPPING_MAX_AGE (2*60*60)
 
+#define SPHERE_RADIUS_CM 2.25
+
+
 /**
  * Syntactic sugar - iterate over all valid controllers of a tracker
  *
@@ -126,7 +130,8 @@ struct _TrackedController {
     int roi_level; 	 			// the current index for the level of ROI
     enum PSMove_Bool roi_level_fixed;    // true if the ROI level should be fixed
     float mx, my;				// x/y - Coordinates of center of mass of the blob
-    float x, y, r;				// x/y - Coordinates of the controllers sphere and its radius
+    float x, y, r;              // x/y - Coordinates of the controllers sphere and its radius
+    float xcm, ycm, zcm;        // x/y/z - Coordinates of the sphere in cm from camera focal point along principal axis (+z is depth).
     int search_tile; 			// current search quadrant when controller is not found (reset to 0 if found)
     float rs;					// a smoothed variant of the radius
 
@@ -320,6 +325,7 @@ void psmove_tracker_set_roi(PSMoveTracker* tracker, TrackedController* tc, int r
  * This function is just the internal implementation of "psmove_tracker_update"
  */
 int psmove_tracker_update_controller(PSMoveTracker* tracker, TrackedController *tc);
+int psmove_tracker_update_controller_cbb(PSMoveTracker* tracker, TrackedController *tc);
 
 /*
  *  This finds the biggest contour within the given image.
@@ -1467,6 +1473,165 @@ psmove_tracker_update_controller(PSMoveTracker *tracker, TrackedController *tc)
 }
 
 int
+psmove_tracker_update_controller_cbb(PSMoveTracker *tracker, TrackedController *tc)
+{
+    // Tell the LEDs to keep on keeping on.
+    if (tc->auto_update_leds) {
+        unsigned char r, g, b;
+        psmove_tracker_get_color(tracker, tc->move, &r, &g, &b);
+        psmove_set_leds(tc->move, r, g, b);
+        //psmove_update_leds(tc->move); test if this prevents it from staying on.
+    }
+
+    // calculate upper & lower bounds for the color filter
+    CvScalar min = th_scalar_sub(tc->eColorHSV, tracker->rHSV);
+    CvScalar max = th_scalar_add(tc->eColorHSV, tracker->rHSV);
+
+    // Tracking algorithm outline:
+    // 1.  Try to find the blob contour in the colour-filtered ROI
+    // 2a. The contour is found - Go to 3
+    // 2b. The contour is not found
+    //          - Then enlarge the ROI and try again. Go to 1
+    //          - ROI cannot be enlarged anymore. break.
+    // 3.   (the contour is found) Dilate (smooth) the contour.
+    // 4.   Get the bounding rect of the contour.
+    // 5.   Re-center ROI on middle of bounding rect and re-size to smallest ROI > 3x bounding rect, not extending past image
+    // 6.   Get the contour again, dilate again, bounding rect again (Steps 1->4)
+    //
+    // 7.   Do trigonometry to get x, y, z in cm
+    // 8.   TODO: Colour adaptation
+
+    int sphere_found = 0;
+    int roi_recentered = 0;
+    int roi_exhausted = 0;
+
+    while (!sphere_found && !roi_exhausted) { // Keep going until sphere_found or roi_exhausted
+
+        // get pointers to image-holders for the given ROI-Level
+        IplImage *roi_i = tracker->roiI[tc->roi_level];  // Colour From largest (480x480 at tc->roi_level==0) to smallest (0.7*0.7*0.7*480 at tc->roi_level==3)
+        IplImage *roi_m = tracker->roiM[tc->roi_level];  // Grayscale ''
+
+        // Try to find the contour in the ROI
+        cvSetImageROI(tracker->frame, cvRect(tc->roi_x, tc->roi_y, roi_i->width, roi_i->height)); // Set the image roi -> limits processing to this region
+        cvCvtColor(tracker->frame, roi_i, CV_BGR2HSV); // Convert the ROI colour space in frame's roi, copy to roi_i
+        cvInRangeS(roi_i, min, max, roi_m);  // apply colour filter, output to roi_m (grayscale)
+        float sizeBest = 0;
+        CvSeq* contourBest = NULL;
+        psmove_tracker_biggest_contour(roi_m, tracker->storage, &contourBest, &sizeBest);
+
+        if (contourBest) {
+            // We found a contour in our ROI
+
+            // Get a white disc. Alternatively could try cvMorphologyEx with MORPH_CLOSE, but maybe that is slower
+            cvSet(roi_m, TH_COLOR_BLACK, NULL);  // Set the whole ROI to black
+            cvDrawContours(roi_m, contourBest, TH_COLOR_WHITE, TH_COLOR_WHITE, -1, CV_FILLED, 8, cvPoint(0, 0)); // Set a white disc
+
+            // Contour bounding rectangle
+            CvRect br = cvBoundingRect(contourBest, 0);
+            
+            // Undo ROI
+            br.x += tc->roi_x;  // Shift our bounding rectangle by the roi
+            br.y += tc->roi_y;
+            cvClearMemStorage(tracker->storage);
+            cvResetImageROI(tracker->frame);  // Remove ROI from the image
+
+            if (!roi_recentered) {
+                // Recenter the ROI on the middle of the bounding rectangle, at smallest ROI >= 3x br size, limited by image size.
+                
+                // Determine the minimum size of the new ROI
+                int min_length = MAX(br.width, br.height) * 3;
+                
+                // find a suitable ROI level (smallest ROI with edges bigger than min_length)
+                for (int i = 0; i < ROIS; i++) {
+                    if (tracker->roiI[i]->width < min_length || tracker->roiI[i]->height < min_length) {
+                        break; // roiI[i] is too small. Try again with larger roi
+                    }
+                    if (tc->roi_level_fixed) {
+                        tc->roi_level = 0;
+                    } else {
+                        tc->roi_level = i; // roiI[i] is not too small. Use i
+                    }
+                    // update easy accessors
+                    roi_i = tracker->roiI[tc->roi_level];
+                    roi_m = tracker->roiM[tc->roi_level];
+                }
+
+                // Set the new ROI, centered on target but shifted back toward middle if out of bounds
+                psmove_tracker_set_roi(tracker, tc, br.x + br.width/2 - min_length/2, br.y + br.height/2 - min_length/2, roi_i->width, roi_i->height);
+
+                roi_recentered = 1;
+                
+            } else { // ROI already recentered, so we have our final br.
+                // Do trigonometry. See https://forums.oculus.com/viewtopic.php?f=25&t=21371&p=261281#p261281
+                float p1[2] = {br.x - tracker->frame->width/2, tracker->frame->height/2 - br.y};  // Upper-left of bounding box, zeroed to midline
+                float p2[2] = {br.x - tracker->frame->width/2 + br.width, tracker->frame->height/2 - br.y - br.height};  // Bottom-right of bounding box, zeroed to midline
+                float focl[2] = {tracker->cc->focl_x, tracker->cc->focl_y};
+                float z[2]; // z_x, z_y
+                float loc[3]; // x,y,z in cm, with origin along principal axis at focal point
+                float phi, psi, alpha, theta, L, loc_z;
+                
+                for (int dim_i = 0; dim_i < 2; dim_i++) {
+                    phi = atan2f(p1[dim_i], focl[dim_i]);
+                    psi = atan2f(p2[dim_i], focl[dim_i]);
+                    alpha = (psi - phi)/2;
+                    theta = phi + alpha;
+                    L = SPHERE_RADIUS_CM / tanf(alpha);
+                    loc[dim_i] = L*sinf(theta);
+                    z[dim_i] = L*cosf(theta);
+                }
+                loc[2] = (z[0] + z[1]) / 2;
+
+                // Copy values to tracked controller.
+                tc->xcm = loc[0];
+                tc->ycm = loc[1];
+                tc->zcm = loc[2];
+                
+                sphere_found = 1;
+            }
+        } else if (tc->roi_level>0) {
+            // No contour, but we can try a bigger ROI
+
+            // Shift the position by half-window
+            tc->roi_x += roi_i->width / 2;
+            tc->roi_y += roi_i->height / 2;
+
+            // Decrement roi_level to use a bigger ROI 
+            if (tc->roi_level_fixed) {
+                tc->roi_level = 0;
+            } else {
+                tc->roi_level = tc->roi_level - 1;
+            }
+
+            // update easy accessors
+            roi_i = tracker->roiI[tc->roi_level];
+            roi_m = tracker->roiM[tc->roi_level];
+
+            // Set the new ROI. It automatically shifts away from edge if ROI is outside the bounds of the camera.
+            //void psmove_tracker_set_roi(PSMoveTracker* tracker, TrackedController* tc, int roi_x, int roi_y, int roi_width, int roi_height);
+            psmove_tracker_set_roi(tracker, tc, tc->roi_x - roi_i->width / 2, tc->roi_y - roi_i->height / 2, roi_i->width, roi_i->height);
+
+        } else {
+            // No contour and we are already at the biggest ROI
+
+            // What's going on here?
+            int rx = tracker->search_tile_width * (tc->search_tile % tracker->search_tiles_horizontal);
+            int ry = tracker->search_tile_height * (int)(tc->search_tile / tracker->search_tiles_horizontal);
+            tc->search_tile = ((tc->search_tile + 2) % tracker->search_tiles_count);
+
+            tc->roi_level = 0; // Shouldn't be necessary, already at biggest.
+            psmove_tracker_set_roi(tracker, tc, rx, ry, tracker->roiI[tc->roi_level]->width, tracker->roiI[tc->roi_level]->height);
+
+            roi_exhausted = 1;
+        }
+
+    }
+
+    // remember if the sphere was found
+    tc->is_tracked = sphere_found;
+    return sphere_found;
+}
+
+int
 psmove_tracker_update(PSMoveTracker *tracker, PSMove *move)
 {
     psmove_return_val_if_fail(tracker->frame != NULL, 0);
@@ -1484,6 +1649,27 @@ psmove_tracker_update(PSMoveTracker *tracker, PSMove *move)
 
     tracker->duration = psmove_util_get_ticks() - started;
 
+    return spheres_found;
+}
+
+int
+psmove_tracker_update_cbb(PSMoveTracker *tracker, PSMove *move)
+{
+    psmove_return_val_if_fail(tracker->frame != NULL, 0);
+    
+    int spheres_found = 0;
+    
+    long started = psmove_util_get_ticks();
+    
+    TrackedController *tc;
+    for_each_controller(tracker, tc) {
+        if (move == NULL || tc->move == move) {
+            spheres_found += psmove_tracker_update_controller_cbb(tracker, tc);
+        }
+    }
+    
+    tracker->duration = psmove_util_get_ticks() - started;
+    
     return spheres_found;
 }
 
@@ -1511,6 +1697,28 @@ psmove_tracker_get_position(PSMoveTracker *tracker, PSMove *move,
         return 1;
     }
 
+    return 0;
+}
+
+int
+psmove_tracker_get_location(PSMoveTracker *tracker, PSMove *move, float *xcm, float *ycm, float *zcm)
+{
+    psmove_return_val_if_fail(tracker != NULL, 0);
+    psmove_return_val_if_fail(move != NULL, 0);
+    TrackedController *tc = psmove_tracker_find_controller(tracker, move);
+    if (tc) {
+        if (xcm) {
+            *xcm = tc->xcm;
+        }
+        if (ycm) {
+            *ycm = tc->ycm;
+        }
+        if (zcm) {
+            *zcm = tc->zcm;
+        }
+        // TODO: return age of tracking values (if possible)
+        return 1;
+    }
     return 0;
 }
 
@@ -1759,9 +1967,9 @@ void psmove_tracker_annotate(PSMoveTracker* tracker) {
 
 float psmove_tracker_hsvcolor_diff(TrackedController* tc) {
 	float diff = 0;
-	diff += abs(tc->eFColorHSV.val[0] - tc->eColorHSV.val[0]) * 1; // diff of HUE is very important
-	diff += abs(tc->eFColorHSV.val[1] - tc->eColorHSV.val[1]) * 0.5; // saturation and value not so much
-	diff += abs(tc->eFColorHSV.val[2] - tc->eColorHSV.val[2]) * 0.5;
+	diff += fabs(tc->eFColorHSV.val[0] - tc->eColorHSV.val[0]) * 1; // diff of HUE is very important
+	diff += fabs(tc->eFColorHSV.val[1] - tc->eColorHSV.val[1]) * 0.5; // saturation and value not so much
+	diff += fabs(tc->eFColorHSV.val[2] - tc->eColorHSV.val[2]) * 0.5;
 	return diff;
 }
 
@@ -1770,6 +1978,7 @@ void psmove_tracker_biggest_contour(IplImage* img, CvMemStorage* stor, CvSeq** r
 	*resSize = 0;
 	*resContour = 0;
 	cvFindContours(img, stor, &contour, sizeof(CvContour), CV_RETR_LIST, CV_CHAIN_APPROX_SIMPLE, cvPoint(0, 0));
+    // What about CV_RETR_EXTERNAL? It should be faster I think. But I don't know what the structure of contour would be like.
 
 	for (; contour; contour = contour->h_next) {
 		float f = cvContourArea(contour, CV_WHOLE_SEQ, 0);
