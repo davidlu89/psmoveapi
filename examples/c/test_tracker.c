@@ -93,7 +93,8 @@ int main(int arg, char** args) {
         psmove_tracker_update_image(tracker);
         //psmove_tracker_update(tracker, NULL);
         psmove_tracker_update_cbb(tracker, NULL);
-        psmove_tracker_annotate(tracker);
+        //psmove_tracker_annotate(tracker);
+        psmove_tracker_annotate_cbb(tracker);
 
         frame = psmove_tracker_get_frame(tracker);
         if (frame) {
@@ -108,13 +109,15 @@ int main(int arg, char** args) {
             psmove_update_leds(controllers[i]);
             */
 
-            //float x, y, r;
-            //psmove_tracker_get_position(tracker, controllers[i], &x, &y, &r);
-            //printf("x: %10.2f, y: %10.2f, r: %10.2f\n", x, y, r);
+            /*
+            float x, y, r;
+            psmove_tracker_get_position(tracker, controllers[i], &x, &y, &r);
+            printf("x: %10.2f, y: %10.2f, r: %10.2f\n", x, y, r);
+            */
             
-            float x, y, z;
-            psmove_tracker_get_location(tracker, controllers[i], &x, &y, &z);
-            printf("x: %10.2f, y: %10.2f, z: %10.2f\n", x, y, z);
+            float xcm, ycm, zcm;
+            psmove_tracker_get_location(tracker, controllers[i], &xcm, &ycm, &zcm);
+            printf("x: %10.2f, y: %10.2f, z: %10.2f\n", xcm, ycm, zcm);
         }
     }
 

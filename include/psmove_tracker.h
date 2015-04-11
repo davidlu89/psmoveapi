@@ -436,6 +436,8 @@ ADDCALL psmove_tracker_update_cbb(PSMoveTracker *tracker, PSMove *move);
 ADDAPI void
 ADDCALL psmove_tracker_annotate(PSMoveTracker* tracker);
 
+ADDAPI void
+ADDCALL psmove_tracker_annotate_cbb(PSMoveTracker* tracker);
 /**
  * \brief Get the current camera image as backend-specific pointer
  *

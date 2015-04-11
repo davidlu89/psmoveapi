@@ -40,7 +40,7 @@
 #include "camera_control_private.h"
 
 /* Default focal length for PS3EYE camera */
-#define DEFAULT_FOCAL_LENGTH 545
+#define DEFAULT_FOCAL_LENGTH 535
 
 #if defined(CAMERA_CONTROL_USE_PS3EYE_DRIVER)
 

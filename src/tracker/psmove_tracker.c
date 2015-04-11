@@ -1480,7 +1480,7 @@ psmove_tracker_update_controller_cbb(PSMoveTracker *tracker, TrackedController *
         unsigned char r, g, b;
         psmove_tracker_get_color(tracker, tc->move, &r, &g, &b);
         psmove_set_leds(tc->move, r, g, b);
-        //psmove_update_leds(tc->move); test if this prevents it from staying on.
+        psmove_update_leds(tc->move);
     }
 
     // calculate upper & lower bounds for the color filter
@@ -1510,14 +1510,14 @@ psmove_tracker_update_controller_cbb(PSMoveTracker *tracker, TrackedController *
         // get pointers to image-holders for the given ROI-Level
         IplImage *roi_i = tracker->roiI[tc->roi_level];  // Colour From largest (480x480 at tc->roi_level==0) to smallest (0.7*0.7*0.7*480 at tc->roi_level==3)
         IplImage *roi_m = tracker->roiM[tc->roi_level];  // Grayscale ''
-
+        
         // Try to find the contour in the ROI
         cvSetImageROI(tracker->frame, cvRect(tc->roi_x, tc->roi_y, roi_i->width, roi_i->height)); // Set the image roi -> limits processing to this region
-        cvCvtColor(tracker->frame, roi_i, CV_BGR2HSV); // Convert the ROI colour space in frame's roi, copy to roi_i
-        cvInRangeS(roi_i, min, max, roi_m);  // apply colour filter, output to roi_m (grayscale)
+        cvCvtColor(tracker->frame, roi_i, CV_BGR2HSV); // Convert the ROI colour space in frame's roi, copy result to roi_i
+        cvInRangeS(roi_i, min, max, roi_m);  // apply colour filter, copy result to roi_m (grayscale)
         float sizeBest = 0;
         CvSeq* contourBest = NULL;
-        psmove_tracker_biggest_contour(roi_m, tracker->storage, &contourBest, &sizeBest);
+        psmove_tracker_biggest_contour(roi_m, tracker->storage, &contourBest, &sizeBest);  // get the biggest contour in roi_m
 
         if (contourBest) {
             // We found a contour in our ROI
@@ -1529,12 +1529,6 @@ psmove_tracker_update_controller_cbb(PSMoveTracker *tracker, TrackedController *
             // Contour bounding rectangle
             CvRect br = cvBoundingRect(contourBest, 0);
             
-            // Undo ROI
-            br.x += tc->roi_x;  // Shift our bounding rectangle by the roi
-            br.y += tc->roi_y;
-            cvClearMemStorage(tracker->storage);
-            cvResetImageROI(tracker->frame);  // Remove ROI from the image
-
             if (!roi_recentered) {
                 // Recenter the ROI on the middle of the bounding rectangle, at smallest ROI >= 3x br size, limited by image size.
                 
@@ -1556,17 +1550,22 @@ psmove_tracker_update_controller_cbb(PSMoveTracker *tracker, TrackedController *
                     roi_m = tracker->roiM[tc->roi_level];
                 }
 
-                // Set the new ROI, centered on target but shifted back toward middle if out of bounds
-                psmove_tracker_set_roi(tracker, tc, br.x + br.width/2 - min_length/2, br.y + br.height/2 - min_length/2, roi_i->width, roi_i->height);
+                // Set the new ROI. Middle of br is not exactly center of sphere, but close enough.
+                psmove_tracker_set_roi(tracker, tc, br.x + br.width/2 + tc->roi_x - roi_i->width/2, br.y + br.height/2 + tc->roi_y - roi_i->height/2, roi_i->width, roi_i->height);
 
                 roi_recentered = 1;
                 
-            } else { // ROI already recentered, so we have our final br.
+            } else { // ROI already recentered
+                br.x += tc->roi_x;  // Offset bounding rectange by roi x,y
+                br.y += tc->roi_y;
+                
+                //printf("pixels: p1: %i,%i p2: %i,%i\n", br.x - tracker->frame->width/2, tracker->frame->height/2 - (br.y+br.height), br.x+br.width - tracker->frame->width/2, tracker->frame->height/2 - br.y);
+                
                 // Do trigonometry. See https://forums.oculus.com/viewtopic.php?f=25&t=21371&p=261281#p261281
-                float p1[2] = {br.x - tracker->frame->width/2, tracker->frame->height/2 - br.y};  // Upper-left of bounding box, zeroed to midline
-                float p2[2] = {br.x - tracker->frame->width/2 + br.width, tracker->frame->height/2 - br.y - br.height};  // Bottom-right of bounding box, zeroed to midline
+                float p1[2] = {br.x - tracker->frame->width/2, tracker->frame->height/2 - (br.y+br.height)};  // Upper-left of bounding box, zeroed to midline.  //tracker->frame->height/2 -
+                float p2[2] = {(br.x + br.width) - tracker->frame->width/2, tracker->frame->height/2 - br.y};  // Bottom-right of bounding box, zeroed to midline
                 float focl[2] = {tracker->cc->focl_x, tracker->cc->focl_y};
-                float z[2]; // z_x, z_y
+                float z[2]; // depth when measured using x, and when measured using y
                 float loc[3]; // x,y,z in cm, with origin along principal axis at focal point
                 float phi, psi, alpha, theta, L, loc_z;
                 
@@ -1585,7 +1584,7 @@ psmove_tracker_update_controller_cbb(PSMoveTracker *tracker, TrackedController *
                 tc->xcm = loc[0];
                 tc->ycm = loc[1];
                 tc->zcm = loc[2];
-                
+
                 sphere_found = 1;
             }
         } else if (tc->roi_level>0) {
@@ -1623,7 +1622,8 @@ psmove_tracker_update_controller_cbb(PSMoveTracker *tracker, TrackedController *
 
             roi_exhausted = 1;
         }
-
+        cvClearMemStorage(tracker->storage);
+        cvResetImageROI(tracker->frame);  // Remove ROI from the image
     }
 
     // remember if the sphere was found
@@ -1930,8 +1930,8 @@ void psmove_tracker_annotate(PSMoveTracker* tracker) {
         for_each_controller(tracker, tc) {
 		if (tc->is_tracked) {
 			// controller specific statistics
-			p.x = tc->x;
-			p.y = tc->y;
+            p.x = tc->x;
+            p.y = tc->y;
 			roi_w = tracker->roiI[tc->roi_level]->width;
 			roi_h = tracker->roiI[tc->roi_level]->height;
 			c = tc->eColor;
@@ -1949,20 +1949,84 @@ void psmove_tracker_annotate(PSMoveTracker* tracker) {
 			sprintf(text, "ROI:%dx%d", roi_w, roi_h);
 			cvPutText(frame, text, cvPoint(tc->roi_x, tc->roi_y + vOff - 15), &fontSmall, c);
 
-			double distance = psmove_tracker_distance_from_radius(tracker, tc->r);
+            double distance = psmove_tracker_distance_from_radius(tracker, tc->r);
 
-			sprintf(text, "radius: %.2f", tc->r);
+            sprintf(text, "radius: %.2f", tc->r);
 			cvPutText(frame, text, cvPoint(tc->roi_x, tc->roi_y + vOff - 35), &fontSmall, c);
-			sprintf(text, "dist: %.2f cm", distance);
+            sprintf(text, "dist: %.2f cm", distance);
 			cvPutText(frame, text, cvPoint(tc->roi_x, tc->roi_y + vOff - 25), &fontSmall, c);
 
-			cvCircle(frame, p, tc->r, TH_COLOR_WHITE, 1, 8, 0);
+            cvCircle(frame, p, tc->r, TH_COLOR_WHITE, 1, 8, 0);
 		} else {
 			roi_w = tracker->roiI[tc->roi_level]->width;
 			roi_h = tracker->roiI[tc->roi_level]->height;
 			cvRectangle(frame, cvPoint(tc->roi_x, tc->roi_y), cvPoint(tc->roi_x + roi_w, tc->roi_y + roi_h), tc->eColor, 3, 8, 0);
                 }
 	}
+}
+
+void psmove_tracker_annotate_cbb(PSMoveTracker* tracker) {
+    CvPoint p;
+    IplImage* frame = tracker->frame;
+    
+    CvFont fontSmall = cvFont(0.8, 1);
+    CvFont fontNormal = cvFont(1, 1);
+    
+    char text[256];
+    CvScalar c;
+    CvScalar avgC;
+    float avgLum = 0;
+    int roi_w = 0;
+    int roi_h = 0;
+    
+    // general statistics
+    avgC = cvAvg(frame, 0x0);
+    avgLum = th_color_avg(avgC);
+    cvRectangle(frame, cvPoint(0, 0), cvPoint(frame->width, 25), TH_COLOR_BLACK, CV_FILLED, 8, 0);
+    sprintf(text, "fps:%.0f", tracker->debug_fps);
+    cvPutText(frame, text, cvPoint(10, 20), &fontNormal, TH_COLOR_WHITE);
+    if (tracker->duration) {
+        tracker->debug_fps = (0.85 * tracker->debug_fps + 0.15 *
+                              (1000. / (double)tracker->duration));
+    }
+    sprintf(text, "avg(lum):%.0f", avgLum);
+    cvPutText(frame, text, cvPoint(255, 20), &fontNormal, TH_COLOR_WHITE);
+    
+    
+    // draw all/one controller information to camera image
+    TrackedController *tc;
+    for_each_controller(tracker, tc) {
+        if (tc->is_tracked) {
+            // controller specific statistics
+            p.x = tc->xcm;
+            p.y = tc->ycm;
+            roi_w = tracker->roiI[tc->roi_level]->width;
+            roi_h = tracker->roiI[tc->roi_level]->height;
+            c = tc->eColor;
+            
+            cvRectangle(frame, cvPoint(tc->roi_x, tc->roi_y), cvPoint(tc->roi_x + roi_w, tc->roi_y + roi_h), TH_COLOR_WHITE, 3, 8, 0);
+            cvRectangle(frame, cvPoint(tc->roi_x, tc->roi_y), cvPoint(tc->roi_x + roi_w, tc->roi_y + roi_h), TH_COLOR_RED, 1, 8, 0);
+            cvRectangle(frame, cvPoint(tc->roi_x, tc->roi_y - 45), cvPoint(tc->roi_x + roi_w, tc->roi_y - 5), TH_COLOR_BLACK, CV_FILLED, 8, 0);
+            
+            int vOff = 0;
+            if (roi_h == frame->height)
+                vOff = roi_h;
+            sprintf(text, "RGB:%x,%x,%x", (int) c.val[2], (int) c.val[1], (int) c.val[0]);
+            cvPutText(frame, text, cvPoint(tc->roi_x, tc->roi_y + vOff - 5), &fontSmall, c);
+            
+            sprintf(text, "ROI:%dx%d", roi_w, roi_h);
+            cvPutText(frame, text, cvPoint(tc->roi_x, tc->roi_y + vOff - 15), &fontSmall, c);
+            
+            sprintf(text, "z: %.2f cm", tc->zcm);
+            cvPutText(frame, text, cvPoint(tc->roi_x, tc->roi_y + vOff - 25), &fontSmall, c);
+            
+            //cvCircle(frame, p, 20, TH_COLOR_WHITE, 1, 8, 0);
+        } else {
+            roi_w = tracker->roiI[tc->roi_level]->width;
+            roi_h = tracker->roiI[tc->roi_level]->height;
+            cvRectangle(frame, cvPoint(tc->roi_x, tc->roi_y), cvPoint(tc->roi_x + roi_w, tc->roi_y + roi_h), tc->eColor, 3, 8, 0);
+        }
+    }
 }
 
 float psmove_tracker_hsvcolor_diff(TrackedController* tc) {
