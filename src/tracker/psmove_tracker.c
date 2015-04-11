@@ -1319,7 +1319,7 @@ psmove_tracker_update_controller(PSMoveTracker *tracker, TrackedController *tc)
 			// apply radius-smoothing if enabled
 			if (tracker->tracker_adaptive_z) {
 				// calculate the difference between calculated radius and the smoothed radius of the past
-				float rDiff = abs(tc->rs - tc->r);
+				float rDiff = fabsf(tc->rs - tc->r);
 				// calcualte a adaptive smoothing factor
 				// a big distance leads to no smoothing, a small one to strong smoothing
 				float rf = MIN(rDiff/4+0.15,1);
@@ -1371,7 +1371,7 @@ psmove_tracker_update_controller(PSMoveTracker *tracker, TrackedController *tc)
 			}
 			// only perform check if we already found the sphere once
 			if (oldRadius > 0 && tc->search_tile==0) {
-				tc->q2 = abs(oldRadius - tc->r) / (oldRadius + FLT_EPSILON);
+				tc->q2 = fabsf(oldRadius - tc->r) / (oldRadius + FLT_EPSILON);
 
 				// additionally check for to big changes
 				sphere_found = sphere_found && tc->q2 < tracker->tracker_t2;
@@ -1550,13 +1550,20 @@ psmove_tracker_update_controller_cbb(PSMoveTracker *tracker, TrackedController *
                     roi_m = tracker->roiM[tc->roi_level];
                 }
 
-                // Set the new ROI. Middle of br is not exactly center of sphere, but close enough.
+                // Set the new ROI.
                 psmove_tracker_set_roi(tracker, tc, br.x + br.width/2 + tc->roi_x - roi_i->width/2, br.y + br.height/2 + tc->roi_y - roi_i->height/2, roi_i->width, roi_i->height);
 
                 roi_recentered = 1;
                 
             } else { // ROI already recentered
-                br.x += tc->roi_x;  // Offset bounding rectange by roi x,y
+                
+                // Update values I never use
+                tc->x = br.x + br.width/2 + tc->roi_x;
+                tc->y = br.y + br.height/2 + tc->roi_y;
+                tc->r = br.width/2;
+                
+                // Offset bounding rectange by roi x,y
+                br.x += tc->roi_x;
                 br.y += tc->roi_y;
                 
                 //printf("pixels: p1: %i,%i p2: %i,%i\n", br.x - tracker->frame->width/2, tracker->frame->height/2 - (br.y+br.height), br.x+br.width - tracker->frame->width/2, tracker->frame->height/2 - br.y);
@@ -1569,6 +1576,7 @@ psmove_tracker_update_controller_cbb(PSMoveTracker *tracker, TrackedController *
                 float loc[3]; // x,y,z in cm, with origin along principal axis at focal point
                 float phi, psi, alpha, theta, L, loc_z;
                 
+                //for x-dim and for y-dim
                 for (int dim_i = 0; dim_i < 2; dim_i++) {
                     phi = atan2f(p1[dim_i], focl[dim_i]);
                     psi = atan2f(p2[dim_i], focl[dim_i]);
@@ -1579,6 +1587,19 @@ psmove_tracker_update_controller_cbb(PSMoveTracker *tracker, TrackedController *
                     z[dim_i] = L*cosf(theta);
                 }
                 loc[2] = (z[0] + z[1]) / 2;
+                
+                float oldLoc[3] = {tc->xcm, tc->ycm, tc->zcm};
+                
+                // apply x/y coordinate smoothing if enabled
+                if (tracker->tracker_adaptive_z) {
+                    // a big distance between the old and new center of mass results in no smoothing
+                    // a little one to strong smoothing
+                    float diff = sqrt( ((loc[0]-oldLoc[0])*(loc[0]-oldLoc[0])) + ((loc[1]-oldLoc[1])*(loc[1]-oldLoc[1])) + ((loc[2]-oldLoc[2])*(loc[2]-oldLoc[2])));
+                    float f = MIN(diff / 7 + 0.15, 1);
+                    for (int dim_i = 0; dim_i < 2; dim_i++) {
+                        loc[dim_i] = oldLoc[dim_i]*(1 - f) + loc[dim_i]*f;
+                    }
+                }
 
                 // Copy values to tracked controller.
                 tc->xcm = loc[0];
@@ -2020,7 +2041,7 @@ void psmove_tracker_annotate_cbb(PSMoveTracker* tracker) {
             sprintf(text, "z: %.2f cm", tc->zcm);
             cvPutText(frame, text, cvPoint(tc->roi_x, tc->roi_y + vOff - 25), &fontSmall, c);
             
-            //cvCircle(frame, p, 20, TH_COLOR_WHITE, 1, 8, 0);
+            cvCircle(frame, cvPoint(tc->x, tc->y), tc->r, TH_COLOR_WHITE, 1, 8, 0);
         } else {
             roi_w = tracker->roiI[tc->roi_level]->width;
             roi_h = tracker->roiI[tc->roi_level]->height;
