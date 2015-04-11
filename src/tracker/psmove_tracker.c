@@ -1523,8 +1523,8 @@ psmove_tracker_update_controller_cbb(PSMoveTracker *tracker, TrackedController *
             // We found a contour in our ROI
 
             // Get a white disc. Alternatively could try cvMorphologyEx with MORPH_CLOSE, but maybe that is slower
-            cvSet(roi_m, TH_COLOR_BLACK, NULL);  // Set the whole ROI to black
-            cvDrawContours(roi_m, contourBest, TH_COLOR_WHITE, TH_COLOR_WHITE, -1, CV_FILLED, 8, cvPoint(0, 0)); // Set a white disc
+            //cvSet(roi_m, TH_COLOR_BLACK, NULL);  // Set the whole ROI to black
+            //cvDrawContours(roi_m, contourBest, TH_COLOR_WHITE, TH_COLOR_WHITE, -1, CV_FILLED, 8, cvPoint(0, 0)); // Set a white disc
 
             // Contour bounding rectangle
             CvRect br = cvBoundingRect(contourBest, 0);
@@ -1582,7 +1582,7 @@ psmove_tracker_update_controller_cbb(PSMoveTracker *tracker, TrackedController *
                     psi = atan2f(p2[dim_i], focl[dim_i]);
                     alpha = (psi - phi)/2;
                     theta = phi + alpha;
-                    L = SPHERE_RADIUS_CM / tanf(alpha);
+                    L = SPHERE_RADIUS_CM / sinf(alpha);
                     loc[dim_i] = L*sinf(theta);
                     z[dim_i] = L*cosf(theta);
                 }
