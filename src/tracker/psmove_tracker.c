@@ -132,6 +132,7 @@ struct _TrackedController {
     float mx, my;				// x/y - Coordinates of center of mass of the blob
     float x, y, r;              // x/y - Coordinates of the controllers sphere and its radius
     float xcm, ycm, zcm;        // x/y/z - Coordinates of the sphere in cm from camera focal point along principal axis (+z is depth).
+    float el_minor, el_angle;   // Used for annotation only.
     int search_tile; 			// current search quadrant when controller is not found (reset to 0 if found)
     float rs;					// a smoothed variant of the radius
 
@@ -1571,10 +1572,12 @@ psmove_tracker_update_controller_cbb(PSMoveTracker *tracker, TrackedController *
                 ellipse.center.x += tc->roi_x;
                 ellipse.center.y += tc->roi_y;
                 
-                // Update pixel positions, which I never use.
+                // Update pixel positions, which I only use in annotation.
                 tc->x = ellipse.center.x;
                 tc->y = ellipse.center.y;
-                tc->r = ellipse.size.width/2;  // Garbage.
+                tc->r = ellipse.size.width/2;  // el_major.
+                tc->el_minor = ellipse.size.height/2;
+                tc->el_angle = ellipse.angle;
                 
                 // Transform x,y from top-left origin to mid/mid origin, with +y up
                 ellipse.center.x -= tracker->frame->width/2;
@@ -2017,15 +2020,19 @@ void psmove_tracker_annotate_cbb(PSMoveTracker* tracker) {
     TrackedController *tc;
     for_each_controller(tracker, tc) {
         if (tc->is_tracked) {
-            // controller specific statistics
-            p.x = tc->xcm;
-            p.y = tc->ycm;
-            roi_w = tracker->roiI[tc->roi_level]->width;
-            roi_h = tracker->roiI[tc->roi_level]->height;
             c = tc->eColor;
             
+            // controller specific statistics for printing
+            p.x = tc->xcm;
+            p.y = tc->ycm;
+            
+            // Draw the ROI
+            roi_w = tracker->roiI[tc->roi_level]->width;
+            roi_h = tracker->roiI[tc->roi_level]->height;
             cvRectangle(frame, cvPoint(tc->roi_x, tc->roi_y), cvPoint(tc->roi_x + roi_w, tc->roi_y + roi_h), TH_COLOR_WHITE, 3, 8, 0);
             cvRectangle(frame, cvPoint(tc->roi_x, tc->roi_y), cvPoint(tc->roi_x + roi_w, tc->roi_y + roi_h), TH_COLOR_RED, 1, 8, 0);
+            
+            // Box for printing stats
             cvRectangle(frame, cvPoint(tc->roi_x, tc->roi_y - 45), cvPoint(tc->roi_x + roi_w, tc->roi_y - 5), TH_COLOR_BLACK, CV_FILLED, 8, 0);
             
             int vOff = 0;
@@ -2040,7 +2047,9 @@ void psmove_tracker_annotate_cbb(PSMoveTracker* tracker) {
             sprintf(text, "z: %.2f cm", tc->zcm);
             cvPutText(frame, text, cvPoint(tc->roi_x, tc->roi_y + vOff - 25), &fontSmall, c);
             
-            cvCircle(frame, cvPoint(tc->x, tc->y), tc->r, TH_COLOR_WHITE, 1, 8, 0);
+            // Draw the ellipse
+            cvEllipse(frame, cvPoint(tc->x, tc->y), cvSize(tc->r, tc->el_minor), tc->el_angle, 0, 360, TH_COLOR_WHITE, 1, 8, 0 );
+            
         } else {
             roi_w = tracker->roiI[tc->roi_level]->width;
             roi_h = tracker->roiI[tc->roi_level]->height;

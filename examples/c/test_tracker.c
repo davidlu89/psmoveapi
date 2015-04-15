@@ -116,6 +116,7 @@ int main(int arg, char** args) {
             */
             
             float xcm, ycm, zcm;
+            float xpx, ypx, el_major, el_minor, angle;
             psmove_tracker_get_location(tracker, controllers[i], &xcm, &ycm, &zcm);
             printf("x: %10.2f, y: %10.2f, z: %10.2f\n", xcm, ycm, zcm);
         }
