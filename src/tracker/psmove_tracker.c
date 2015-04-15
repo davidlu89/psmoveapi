@@ -1486,6 +1486,9 @@ psmove_tracker_update_controller_cbb(PSMoveTracker *tracker, TrackedController *
     // calculate upper & lower bounds for the color filter
     CvScalar min = th_scalar_sub(tc->eColorHSV, tracker->rHSV);
     CvScalar max = th_scalar_add(tc->eColorHSV, tracker->rHSV);
+    
+    // Used for cvMorphologyEx
+    //IplConvKernel *convKernel = cvCreateStructuringElementEx(3, 3, 1, 1, CV_SHAPE_RECT, NULL);
 
     // Tracking algorithm outline:
     // 1.  Try to find the blob contour in the colour-filtered ROI
@@ -1493,11 +1496,10 @@ psmove_tracker_update_controller_cbb(PSMoveTracker *tracker, TrackedController *
     // 2b. The contour is not found
     //          - Then enlarge the ROI and try again. Go to 1
     //          - ROI cannot be enlarged anymore. break.
-    // 3.   (the contour is found) Dilate (smooth) the contour.
-    // 4.   Get the bounding rect of the contour.
-    // 5.   Re-center ROI on middle of bounding rect and re-size to smallest ROI > 3x bounding rect, not extending past image
-    // 6.   Get the contour again, dilate again, bounding rect again (Steps 1->4)
-    //
+    // 3.   (the contour is found) Don't smooth contour (I find it gives a poor distance estimate)
+    // 4.   Re-center ROI on middle of bounding rect of countour and re-size to smallest ROI > 3x bounding rect, not extending past image
+    // 5.   Re-get contour with new ROI
+    // 6.   Fit ellipse to contour
     // 7.   Do trigonometry to get x, y, z in cm
     // 8.   TODO: Colour adaptation
 
@@ -1511,25 +1513,30 @@ psmove_tracker_update_controller_cbb(PSMoveTracker *tracker, TrackedController *
         IplImage *roi_i = tracker->roiI[tc->roi_level];  // Colour From largest (480x480 at tc->roi_level==0) to smallest (0.7*0.7*0.7*480 at tc->roi_level==3)
         IplImage *roi_m = tracker->roiM[tc->roi_level];  // Grayscale ''
         
-        // Try to find the contour in the ROI
+        // Prepare the ROI image
         cvSetImageROI(tracker->frame, cvRect(tc->roi_x, tc->roi_y, roi_i->width, roi_i->height)); // Set the image roi -> limits processing to this region
         cvCvtColor(tracker->frame, roi_i, CV_BGR2HSV); // Convert the ROI colour space in frame's roi, copy result to roi_i
         cvInRangeS(roi_i, min, max, roi_m);  // apply colour filter, copy result to roi_m (grayscale)
+        //cvSmooth(roi_m, roi_m, CV_GAUSSIAN, 3, 3, 0, 0); // smooth shrinks the contour, giving the wrong depth.
+        //cvMorphologyEx(roi_m, roi_m, NULL, NULL, CV_MOP_CLOSE, 1 );
+        
+        // Get the contour in the ROI
         float sizeBest = 0;
         CvSeq* contourBest = NULL;
         psmove_tracker_biggest_contour(roi_m, tracker->storage, &contourBest, &sizeBest);  // get the biggest contour in roi_m
-
+        
         if (contourBest) {
             // We found a contour in our ROI
 
             // Get a white disc. Alternatively could try cvMorphologyEx with MORPH_CLOSE, but maybe that is slower
+            // Are either of these necessary? Are they more/less necessary if we cvSmooth above?
             //cvSet(roi_m, TH_COLOR_BLACK, NULL);  // Set the whole ROI to black
             //cvDrawContours(roi_m, contourBest, TH_COLOR_WHITE, TH_COLOR_WHITE, -1, CV_FILLED, 8, cvPoint(0, 0)); // Set a white disc
-
-            // Contour bounding rectangle
-            CvRect br = cvBoundingRect(contourBest, 0);
             
             if (!roi_recentered) {
+                // Contour bounding rectangle
+                CvRect br = cvBoundingRect(contourBest, 0);
+                
                 // Recenter the ROI on the middle of the bounding rectangle, at smallest ROI >= 3x br size, limited by image size.
                 
                 // Determine the minimum size of the new ROI
@@ -1557,54 +1564,46 @@ psmove_tracker_update_controller_cbb(PSMoveTracker *tracker, TrackedController *
                 
             } else { // ROI already recentered
                 
-                // Update values I never use
-                tc->x = br.x + br.width/2 + tc->roi_x;
-                tc->y = br.y + br.height/2 + tc->roi_y;
-                tc->r = br.width/2;
+                // Fit an ellipse to our contour
+                CvBox2D ellipse = cvFitEllipse2(contourBest); // Is this really slow?
                 
-                // Offset bounding rectange by roi x,y
-                br.x += tc->roi_x;
-                br.y += tc->roi_y;
+                // Offset ellipse by our ROI
+                ellipse.center.x += tc->roi_x;
+                ellipse.center.y += tc->roi_y;
                 
-                //printf("pixels: p1: %i,%i p2: %i,%i\n", br.x - tracker->frame->width/2, tracker->frame->height/2 - (br.y+br.height), br.x+br.width - tracker->frame->width/2, tracker->frame->height/2 - br.y);
+                // Update pixel positions, which I never use.
+                tc->x = ellipse.center.x;
+                tc->y = ellipse.center.y;
+                tc->r = ellipse.size.width/2;  // Garbage.
                 
-                // Do trigonometry. See https://forums.oculus.com/viewtopic.php?f=25&t=21371&p=261281#p261281
-                float p1[2] = {br.x - tracker->frame->width/2, tracker->frame->height/2 - (br.y+br.height)};  // Upper-left of bounding box, zeroed to midline.  //tracker->frame->height/2 -
-                float p2[2] = {(br.x + br.width) - tracker->frame->width/2, tracker->frame->height/2 - br.y};  // Bottom-right of bounding box, zeroed to midline
-                float focl[2] = {tracker->cc->focl_x, tracker->cc->focl_y};
-                float z[2]; // depth when measured using x, and when measured using y
-                float loc[3]; // x,y,z in cm, with origin along principal axis at focal point
-                float phi, psi, alpha, theta, L, loc_z;
+                // Transform x,y from top-left origin to mid/mid origin, with +y up
+                ellipse.center.x -= tracker->frame->width/2;
+                ellipse.center.y = tracker->frame->height/2 - ellipse.center.y;
                 
-                //for x-dim and for y-dim
-                for (int dim_i = 0; dim_i < 2; dim_i++) {
-                    phi = atan2f(p1[dim_i], focl[dim_i]);
-                    psi = atan2f(p2[dim_i], focl[dim_i]);
-                    alpha = (psi - phi)/2;
-                    theta = phi + alpha;
-                    L = SPHERE_RADIUS_CM / sinf(alpha);
-                    loc[dim_i] = L*sinf(theta);
-                    z[dim_i] = L*cosf(theta);
-                }
-                loc[2] = (z[0] + z[1]) / 2;
+                // Do trigonometry. See https://raw.githubusercontent.com/cboulay/psmove-ue4/master/wiki_pics/MoveTracker.png
                 
-                float oldLoc[3] = {tc->xcm, tc->ycm, tc->zcm};
+                // First get short-hand access to our variables.
+                float a = ellipse.size.width/2;
+                float f_0 = tracker->cc->focl_x;
+                float x_i = ellipse.center.x;
+                float y_i = ellipse.center.y;
                 
-                // apply x/y coordinate smoothing if enabled
-                if (tracker->tracker_adaptive_z) {
-                    // a big distance between the old and new center of mass results in no smoothing
-                    // a little one to strong smoothing
-                    float diff = sqrt( ((loc[0]-oldLoc[0])*(loc[0]-oldLoc[0])) + ((loc[1]-oldLoc[1])*(loc[1]-oldLoc[1])) + ((loc[2]-oldLoc[2])*(loc[2]-oldLoc[2])));
-                    float f = MIN(diff / 7 + 0.15, 1);
-                    for (int dim_i = 0; dim_i < 2; dim_i++) {
-                        loc[dim_i] = oldLoc[dim_i]*(1 - f) + loc[dim_i]*f;
-                    }
-                }
-
+                // Calculations
+                float L_i = sqrt(x_i*x_i + y_i*y_i);
+                float j = (L_i + a)/f_0;
+                float k = L_i/f_0;
+                float l = (j - k) / (1 + j*k);
+                float D_0 = SPHERE_RADIUS_CM * sqrt(1+l*l) / l;
+                float fl = f_0 / L_i; // used several times.
+                float z = D_0 * fl / sqrt(1 + fl*fl);
+                float L = sqrt(D_0*D_0 - z*z);
+                float x = L*x_i/L_i;
+                float y = L*y_i/L_i;
+                
                 // Copy values to tracked controller.
-                tc->xcm = loc[0];
-                tc->ycm = loc[1];
-                tc->zcm = loc[2];
+                tc->xcm = x;
+                tc->ycm = y;
+                tc->zcm = z;
 
                 sphere_found = 1;
             }
@@ -2062,12 +2061,12 @@ void psmove_tracker_biggest_contour(IplImage* img, CvMemStorage* stor, CvSeq** r
 	CvSeq* contour;
 	*resSize = 0;
 	*resContour = 0;
-	cvFindContours(img, stor, &contour, sizeof(CvContour), CV_RETR_LIST, CV_CHAIN_APPROX_SIMPLE, cvPoint(0, 0));
-    // What about CV_RETR_EXTERNAL? It should be faster I think. But I don't know what the structure of contour would be like.
+    cvFindContours(img, stor, &contour, sizeof(CvContour), CV_RETR_LIST, CV_CHAIN_APPROX_SIMPLE, cvPoint(0, 0));
+    //CV_RETR_EXTERNAL might be faster but I do not know how to handle its result.
 
 	for (; contour; contour = contour->h_next) {
 		float f = cvContourArea(contour, CV_WHOLE_SEQ, 0);
-		if (f > *resSize) {
+		if (f > *resSize && contour->total >= 6) {
 			*resSize = f;
 			*resContour = contour;
 		}
