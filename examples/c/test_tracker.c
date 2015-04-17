@@ -91,10 +91,8 @@ int main(int arg, char** args) {
 
     while ((cvWaitKey(1) & 0xFF) != 27) {
         psmove_tracker_update_image(tracker);
-        //psmove_tracker_update(tracker, NULL);
-        psmove_tracker_update_cbb(tracker, NULL);
-        //psmove_tracker_annotate(tracker);
-        psmove_tracker_annotate_cbb(tracker);
+        psmove_tracker_update(tracker, NULL);
+        psmove_tracker_annotate(tracker);
 
         frame = psmove_tracker_get_frame(tracker);
         if (frame) {
@@ -109,16 +107,17 @@ int main(int arg, char** args) {
             psmove_update_leds(controllers[i]);
             */
 
-            /*
+            /* This works but the position in pixels is not so interesting.
             float x, y, r;
             psmove_tracker_get_position(tracker, controllers[i], &x, &y, &r);
             printf("x: %10.2f, y: %10.2f, r: %10.2f\n", x, y, r);
             */
             
             float xcm, ycm, zcm;
-            float xpx, ypx, el_major, el_minor, angle;
             psmove_tracker_get_location(tracker, controllers[i], &xcm, &ycm, &zcm);
             printf("x: %10.2f, y: %10.2f, z: %10.2f\n", xcm, ycm, zcm);
+
+            //float xpx, ypx, el_major, el_minor, angle;
         }
     }
 
