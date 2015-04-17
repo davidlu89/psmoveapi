@@ -81,12 +81,8 @@
 #define COLOR_UPDATE_QUALITY_T1 0.8	// minimum ratio of number of pixels in blob vs pixel of estimated circle.
 #define COLOR_UPDATE_QUALITY_T2 0.2	// maximum allowed change of the radius in percent, compared to the last estimated radius
 #define COLOR_UPDATE_QUALITY_T3 6	// minimum radius
-#ifdef WIN32
-#define PSEYE_BACKUP_FILE "PSEye_backup_win.ini"
-#else
-#define PSEYE_BACKUP_FILE "PSEye_backup_v4l.ini"
-#endif
 
+#define PSEYE_BACKUP_FILE "PSEye_backup.ini"
 #define INTRINSICS_XML "intrinsics.xml"
 #define DISTORTION_XML "distortion.xml"
 
