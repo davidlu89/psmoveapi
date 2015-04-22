@@ -34,6 +34,9 @@
 #include <assert.h>
 
 #include "psmove.h"
+#if defined(PSMOVE_WITH_MADGWICK_AHRS)
+#include <math.h>
+#endif
 
 int
 main(int argc, char* argv[])
@@ -46,11 +49,17 @@ main(int argc, char* argv[])
         fprintf(stderr, "Could not connect to controller.\n");
         return EXIT_FAILURE;
     }
-
+    
     assert(psmove_has_calibration(move));
+    
+#if defined(PSMOVE_WITH_MADGWICK_AHRS)
+    psmove_enable_orientation(move, PSMove_True);
+    assert(psmove_has_orientation(move));
+    float xAngle, yAngle, zAngle;
+#endif
 
     if (psmove_connection_type(move) == Conn_Bluetooth) {
-        float ax, ay, az, gx, gy, gz;
+        float ax, ay, az, gx, gy, gz, mx, my, mz;
 
         while (1) {
             int res = psmove_poll(move);
@@ -59,9 +68,18 @@ main(int argc, char* argv[])
                         &ax, &ay, &az);
                 psmove_get_gyroscope_frame(move, Frame_SecondHalf,
                         &gx, &gy, &gz);
+                
+                psmove_get_magnetometer_vector(move,
+                                               &mx, &my, &mz);
 
-                printf("A: %5.2f %5.2f %5.2f ", ax, ay, az);
-                printf("G: %6.2f %6.2f %6.2f ", gx, gy, gz);
+                printf("A: %6.3f %6.3f %6.3f   ", ax, ay, az);
+                printf("G: %7.3f %7.3f %7.3f   ", gx, gy, gz);
+                printf("M: %6.3f %6.3f %6.3f", mx, my, mz);
+                
+#if defined(PSMOVE_WITH_MADGWICK_AHRS)
+                psmove_get_angles(move, &xAngle, &yAngle, &zAngle);
+                printf("   E: %4.2f %4.2f %4.2f", xAngle, yAngle, zAngle);
+#endif
                 printf("\n");
             }
         }

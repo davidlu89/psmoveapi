@@ -1959,6 +1959,18 @@ psmove_reset_orientation(PSMove *move)
 }
 
 void
+psmove_get_angles(PSMove *move, float *xAngle, float *yAngle, float *zAngle)
+{
+    float w, x, y, z;
+    psmove_get_orientation(move, &w, &x, &y, &z);
+    // So many ways to calculate. PSMove uses LH system, so does Unity, UE4
+    *xAngle = atan2f(2*(x*w - y*z), 1 - 2*(x*x + z*z));  // aka bank, roll
+    *yAngle = asinf(2*(x*y + z*w));  // aka attitude, pitch
+    *zAngle = atan2f(2*(y*w - x*z), 1 - 2*(y*y + z*z));  // aka heading, yaw
+
+}
+
+void
 psmove_reset_magnetometer_calibration(PSMove *move)
 {
     psmove_return_if_fail(move != NULL);
@@ -2169,7 +2181,7 @@ psmove_util_get_data_dir()
 
     if (strlen(dir) == 0) {
         strncpy(dir, getenv(ENV_USER_HOME), sizeof(dir));
-        strncat(dir, PATH_SEP ".psmoveapi", sizeof(dir)-1);
+        strncat(dir, PATH_SEP ".psmoveapi", sizeof(dir));
     }
 
     return dir;
