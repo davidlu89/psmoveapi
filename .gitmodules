@@ -4,4 +4,4 @@
 [submodule "external/PS3EYEDriver"]
 	path = external/PS3EYEDriver
 	url = https://github.com/cboulay/PS3EYEDriver.git
-	branch = test_psm
+	branch = psm_test
