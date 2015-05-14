@@ -1019,10 +1019,9 @@ class PSMoveTracker:
 		                        the tracker, \ref PSMove_False if the user
 		                        will take care of updating the LEDs
 		"""
-		return libtrck.psmove_tracker_set_auto_update_leds(self.tracker, self.move,
-												   auto_update_leds)
+		return libtrck.psmove_tracker_set_auto_update_leds(self.tracker, self.move, auto_update_leds)
 
-	def get_auto_update_leds(self):
+	def get_auto_update_leds(self, move):
 		""" \brief Check if the LEDs of a controller are updated automatically
 
 		This is the getter function for psmove_tracker_set_auto_update_leds().
@@ -1034,7 +1033,7 @@ class PSMoveTracker:
 		\return \ref PSMove_True if the controller's LEDs are set to be
 		        updated automatically, \ref PSMove_False otherwise
 		"""
-		return libtrck.psmove_tracker_get_auto_update_leds(self.tracker, self.move)
+		return libtrck.psmove_tracker_get_auto_update_leds(self.tracker, move)
 
 	def set_dimming(self, dimming):
 		""" \brief Set the LED dimming value for all controller
@@ -1111,7 +1110,7 @@ class PSMoveTracker:
 		\param enabled \ref PSMove_True to mirror the image horizontally,
 		               \ref PSMove_False to leave the image as-is (default)
 		"""
-		return libtrck.psmove_tracker_set_mirror(self.tracker, c_int(enabled))
+		return libtrck.psmove_tracker_set_mirror(self.tracker, enabled)
 
 	def get_mirror(self):
 		""" \brief Query the current camera image mirroring state
@@ -1125,7 +1124,7 @@ class PSMoveTracker:
 		"""
 		return libtrck.psmove_tracker_get_mirror(self.tracker)
 
-	def enable(self):
+	def enable(self, move):
 		""" \brief Enable tracking of a motion controller
 
 		Calling this function will register the controller with the
@@ -1139,7 +1138,7 @@ class PSMoveTracker:
 		\return \ref Tracker_CALIBRATED if calibration succeeded
 		\return \ref Tracker_CALIBRATION_ERROR if calibration failed
 		"""
-		return libtrck.psmove_tracker_enable(self.tracker, self.move)
+		return libtrck.psmove_tracker_enable(self.tracker, move)
 
 	def enable_with_color(self, r, g, b):
 		""" \brief Enable tracking with a custom sphere color
@@ -1360,7 +1359,7 @@ class PSMoveTracker:
 
 		\return The age of the sensor reading in milliseconds, or -1 on error
 		"""
-		return libtrck.psmove_tracker_get_location(self.tracker, self.move, xcm, ycm, zcm)
+		return libtrck.psmove_tracker_get_location(self.tracker, move, xcm, ycm, zcm)
 
 	def get_size(self, width, height):
 		""" \brief Get the camera image size for the tracker
@@ -1524,7 +1523,7 @@ libctrl.psmove_init.argtypes                        = [c_int]
 libctrl.psmove_set_remote_config.argtypes           = [c_int]
 # libctrl.psmove_count_connected.argtypes           
 # libctrl.psmove_connect.argtypes                   
-# libctrl.psmove_connect_by_id.argtypes             
+libctrl.psmove_connect_by_id.argtypes               = [c_int]
 libctrl.psmove_connection_type.argtypes             = [c_void_p]
 libctrl.psmove_is_remote.argtypes                   = [c_void_p]
 libctrl.psmove_get_serial.argtypes                  = [c_void_p]
