@@ -974,8 +974,9 @@ class PSMove:
 class PSMoveTracker:
 
 	def __init__(self):
-		self.version = 1.0
 		self.tracker = self.new()
+		if not self.tracker: print "Could not init PSMoveTracker.\n"
+
 
 	def new(self):
 		""" \brief Create a new PS Move Tracker instance and open the camera
@@ -1110,7 +1111,7 @@ class PSMoveTracker:
 		\param enabled \ref PSMove_True to mirror the image horizontally,
 		               \ref PSMove_False to leave the image as-is (default)
 		"""
-		return libtrck.psmove_tracker_set_mirror(self.tracker, enabled)
+		return libtrck.psmove_tracker_set_mirror(self.tracker, c_int(enabled))
 
 	def get_mirror(self):
 		""" \brief Query the current camera image mirroring state
@@ -1260,7 +1261,7 @@ class PSMoveTracker:
 		"""
 		return libtrck.psmove_tracker_update_image(self.tracker)
 
-	def update(self):
+	def update(self, move):
 		""" \brief Process incoming data and update tracking information
 
 		This function tracks one or all motion controllers in the camera
@@ -1275,7 +1276,7 @@ class PSMoveTracker:
 
 		\return Nonzero if tracking was successful, zero otherwise
 		"""
-		return libtrck.psmove_tracker_update(self.tracker, self.move)
+		return libtrck.psmove_tracker_update(self.tracker, move)
 
 	def annotate(self):
 		""" \brief Draw debugging information onto the current camera image
@@ -1345,7 +1346,7 @@ class PSMoveTracker:
 		"""
 		return libtrck.psmove_tracker_get_position(self.tracker, self.move, x, y, radius)
 
-	def get_location(self, xcm, ycm, zcm):
+	def get_location(self, move, xcm, ycm, zcm):
 		""" \brief Get the current 3D location of a tracked controller
 
 		This function obtains the location of a controller in the
@@ -1426,7 +1427,177 @@ libtrck = CDLL(libtrckpath)
 # ==== set function return types ====
 # ===================================
 
+# ----------------------------------
+# -------- libctrl.psmove_: --------
+# ----------------------------------
+libctrl.psmove_init.restype                         = c_int
+# libctrl.psmove_set_remote_config.restype          = c_void
+libctrl.psmove_count_connected.restype              = c_int
+libctrl.psmove_connect.restype                      = c_void_p
+libctrl.psmove_connect_by_id.restype                = c_void_p
+libctrl.psmove_connection_type.restype              = c_int
+libctrl.psmove_is_remote.restype                    = c_int
+libctrl.psmove_get_serial.restype                   = c_char_p
+libctrl.psmove_pair.restype                         = c_int
+libctrl.psmove_pair_custom.restype                  = c_int
+# libctrl.psmove_set_rate_limiting.restype          = c_void
+# libctrl.psmove_set_leds.restype                   = c_void
+libctrl.psmove_set_led_pwm_frequency.restype        = c_int
+# libctrl.psmove_set_rumble.restype                 = c_void
+libctrl.psmove_update_leds.restype                  = c_int
+libctrl.psmove_poll.restype                         = c_int
+libctrl.psmove_get_ext_data.restype                 = c_int
+libctrl.psmove_send_ext_data.restype                = c_int
+libctrl.psmove_get_buttons.restype                  = c_uint
+# libctrl.psmove_get_button_events.restype          = c_void
+libctrl.psmove_is_ext_connected.restype             = c_int
+libctrl.psmove_get_ext_device_info.restype          = c_int
+libctrl.psmove_get_battery.restype                  = c_int
+libctrl.psmove_get_temperature.restype              = c_int
+libctrl.psmove_get_temperature_in_celsius.restype   = c_float
+libctrl.psmove_get_trigger.restype                  = c_ubyte
+# libctrl.psmove_get_accelerometer.restype          = c_void
+# libctrl.psmove_get_gyroscope.restype              = c_void
+# libctrl.psmove_get_magnetometer.restype           = c_void
+# libctrl.psmove_get_accelerometer_frame.restype    = c_void
+# libctrl.psmove_get_gyroscope_frame.restype        = c_void
+# libctrl.psmove_get_magneometer_vector.restype     = c_void
+libctrl.psmove_has_calibration.restype              = c_int
+# libctrl.psmove_dump_calibration.restype           = c_void
+# libctrl.psmove_enable_orientation.restype         = c_void
+libctrl.psmove_has_orientation.restype              = c_int
+# libctrl.psmove_get_orientation.restype            = c_void
+# libctrl.psmove_reset_orientation.restype          = c_void
+# libctrl.psmove_get_angles.restype                 = c_void
+# libctrl.psmove_reset_magnetometer_calibration.restype = c_void
+# libctrl.psmove_save_magentometer_calibration.restype = c_void
+libctrl.psmove_get_magnetometer_calibration_range.restype = c_int
+# libctrl.psmove_disconnect.restype                 = c_void
+# libctrl.psmove_reinit.restype                     = c_void
+libctrl.psmove_util_get_ticks.restype               = c_long
+libctrl.psmove_util_get_data_dir.restype            = c_char_p
+libctrl.psmove_util_get_file_path.restype           = c_char_p
+libctrl.psmove_util_get_system_file_path.restype    = c_char_p
+libctrl.psmove_util_get_env_int.restype             = c_int
+libctrl.psmove_util_get_env_string.restype          = c_char_p
 
+# ----------------------------------
+# ---- libtrck.psmove_tracker_: ----
+# ----------------------------------
+libtrck.psmove_tracker_new.restype                  = c_void_p
+libtrck.psmove_tracker_new_with_camera.restype      = c_void_p
+# libtrck.psmove_tracker_set_auto_update_leds.restype = c_void
+libtrck.psmove_tracker_get_auto_update_leds.restype = c_int
+# libtrck.psmove_tracker_set_dimming.restype        = c_void
+libtrck.psmove_tracker_get_dimming.restype          = c_float
+# libtrck.psmove_tracker_set_exposure.restype       = c_void
+libtrck.psmove_tracker_get_exposure.restype         = c_int
+# libtrck.psmove_tracker_enable_deinterlace.restype = c_void
+# libtrck.psmove_tracker_set_mirror.restype         = c_void
+libtrck.psmove_tracker_get_mirror.restype           = c_int
+libtrck.psmove_tracker_enable.restype               = c_int
+libtrck.psmove_tracker_enable_with_color.restype    = c_int
+# libtrck.psmove_tracker_disable.restype            = c_void
+libtrck.psmove_tracker_get_color.restype            = c_int
+libtrck.psmove_tracker_get_camera_color.restype     = c_int
+libtrck.psmove_tracker_set_camera_color.restype     = c_int
+libtrck.psmove_tracker_get_status.restype           = c_int
+# libtrck.psmove_tracker_update_image.restype       = void
+libtrck.psmove_tracker_update.restype               = c_int
+# libtrck.psmove_tracker_annotate.restype           = c_void
+libtrck.psmove_tracker_get_frame.restype            = c_void_p
+libtrck.psmove_tracker_get_image.restype            = c_int
+libtrck.psmove_tracker_get_position.restype         = c_int
+libtrck.psmove_tracker_get_location.restype         = c_int
+# libtrck.psmove_tracker_get_size.restype           = c_void
+# libtrck.psmove_tracker_free.restype               = c_void
 
+# ==================================
+# ==== set function args. types ====
+# ==================================
 
+# ----------------------------------
+# -------- libctrl.psmove_: --------
+# ----------------------------------
+#*** are not working when uncommented
+libctrl.psmove_init.argtypes                        = [c_int]
+libctrl.psmove_set_remote_config.argtypes           = [c_int]
+# libctrl.psmove_count_connected.argtypes           
+# libctrl.psmove_connect.argtypes                   
+# libctrl.psmove_connect_by_id.argtypes             
+libctrl.psmove_connection_type.argtypes             = [c_void_p]
+libctrl.psmove_is_remote.argtypes                   = [c_void_p]
+libctrl.psmove_get_serial.argtypes                  = [c_void_p]
+libctrl.psmove_pair.argtypes                        = [c_void_p]
+libctrl.psmove_pair_custom.argtypes                 = [c_void_p, c_char_p]
+libctrl.psmove_set_rate_limiting.argtypes           = [c_void_p, c_int]
+libctrl.psmove_set_leds.argtypes                    = [c_void_p, c_ubyte, c_ubyte, c_ubyte]
+libctrl.psmove_set_led_pwm_frequency.argtypes       = [c_void_p, c_ulong]
+libctrl.psmove_set_rumble.argtypes                  = [c_void_p, c_ubyte]
+libctrl.psmove_update_leds.argtypes                 = [c_void_p]
+libctrl.psmove_poll.argtypes                        = [c_void_p]
+libctrl.psmove_get_ext_data.argtypes                = [c_void_p, c_int]
+libctrl.psmove_send_ext_data.argtypes               = [c_void_p, c_char_p, c_ubyte]
+libctrl.psmove_get_buttons.argtypes                 = [c_void_p]
+libctrl.psmove_get_button_events.argtypes           = [c_void_p, c_uint, c_uint]
+libctrl.psmove_is_ext_connected.argtypes            = [c_void_p]
+libctrl.psmove_get_ext_device_info.argtypes         = [c_void_p, c_int] #*
+libctrl.psmove_get_battery.argtypes                 = [c_void_p]
+libctrl.psmove_get_temperature.argtypes             = [c_void_p]
+libctrl.psmove_get_temperature_in_celsius.argtypes  = [c_void_p]
+libctrl.psmove_get_trigger.argtypes                 = [c_void_p]
+libctrl.psmove_get_accelerometer.argtypes           = [c_void_p, c_int, c_int, c_int]
+libctrl.psmove_get_gyroscope.argtypes               = [c_void_p, c_int, c_int, c_int]
+libctrl.psmove_get_magnetometer.argtypes            = [c_void_p, c_int, c_int, c_int]
+libctrl.psmove_get_accelerometer_frame.argtypes     = [c_void_p, c_int, c_float, c_float, c_float]
+libctrl.psmove_get_gyroscope_frame.argtypes         = [c_void_p, c_int, c_float, c_float, c_float]
+# libctrl.psmove_get_magneometer_vector.argtypes      = [c_void_p, c_float, c_float, c_float] #***
+libctrl.psmove_has_calibration.argtypes             = [c_void_p]
+libctrl.psmove_dump_calibration.argtypes            = [c_void_p]
+libctrl.psmove_enable_orientation.argtypes          = [c_void_p, c_int]
+libctrl.psmove_has_orientation.argtypes             = [c_void_p]
+libctrl.psmove_get_orientation.argtypes             = [c_void_p, c_float, c_float, c_float, c_float]
+libctrl.psmove_reset_orientation.argtypes           = [c_void_p]
+libctrl.psmove_get_angles.argtypes                  = [c_void_p, c_float, c_float, c_float]
+libctrl.psmove_reset_magnetometer_calibration.argtypes     = [c_void_p]
+# libctrl.psmove_save_magentometer_calibration.argtypes    = [c_void_p] #***
+libctrl.psmove_get_magnetometer_calibration_range.argtypes = [c_void_p]
+libctrl.psmove_disconnect.argtypes                  = [c_void_p]
+# libctrl.psmove_reinit.argtypes                    
+# libctrl.psmove_util_get_ticks.argtypes            
+# libctrl.psmove_util_get_data_dir.argtypes         
+libctrl.psmove_util_get_file_path.argtypes          = [c_char_p]
+libctrl.psmove_util_get_system_file_path.argtypes   = [c_char_p]
+libctrl.psmove_util_get_env_int.argtypes            = [c_char_p]
+libctrl.psmove_util_get_env_string.argtypes         = [c_char_p]
 
+# ----------------------------------
+# ---- libtrck.psmove_tracker_: ----
+# ----------------------------------
+# libtrck.psmove_tracker_new.argtypes                
+libtrck.psmove_tracker_new_with_camera.argtypes      = [c_int]
+libtrck.psmove_tracker_set_auto_update_leds.argtypes = [c_void_p, c_void_p, c_int]
+libtrck.psmove_tracker_get_auto_update_leds.argtypes = [c_void_p, c_void_p]
+libtrck.psmove_tracker_set_dimming.argtypes          = [c_void_p, c_float]
+libtrck.psmove_tracker_get_dimming.argtypes          = [c_void_p]
+libtrck.psmove_tracker_set_exposure.argtypes         = [c_void_p, c_int]
+libtrck.psmove_tracker_get_exposure.argtypes         = [c_void_p]
+libtrck.psmove_tracker_enable_deinterlace.argtypes   = [c_void_p, c_int]
+libtrck.psmove_tracker_set_mirror.argtypes           = [c_void_p, c_int]
+libtrck.psmove_tracker_get_mirror.argtypes           = [c_void_p]
+libtrck.psmove_tracker_enable.argtypes               = [c_void_p, c_void_p]
+libtrck.psmove_tracker_enable_with_color.argtypes    = [c_void_p, c_void_p, c_ubyte, c_ubyte, c_ubyte]
+libtrck.psmove_tracker_disable.argtypes              = [c_void_p, c_void_p]
+libtrck.psmove_tracker_get_color.argtypes            = [c_void_p, c_void_p, c_ubyte, c_ubyte, c_ubyte]
+libtrck.psmove_tracker_get_camera_color.argtypes     = [c_void_p, c_void_p, c_ubyte, c_ubyte, c_ubyte]
+libtrck.psmove_tracker_set_camera_color.argtypes     = [c_void_p, c_void_p, c_ubyte, c_ubyte, c_ubyte]
+libtrck.psmove_tracker_get_status.argtypes           = [c_void_p, c_void_p]
+libtrck.psmove_tracker_update_image.argtypes         = [c_void_p]
+libtrck.psmove_tracker_update.argtypes               = [c_void_p, c_void_p]
+libtrck.psmove_tracker_annotate.argtypes             = [c_void_p]
+libtrck.psmove_tracker_get_frame.argtypes            = [c_void_p]
+libtrck.psmove_tracker_get_image.argtypes            = [c_void_p]
+libtrck.psmove_tracker_get_position.argtypes         = [c_void_p, c_void_p, c_float, c_float, c_float]
+libtrck.psmove_tracker_get_location.argtypes         = [c_void_p, c_void_p, POINTER(c_float), POINTER(c_float), POINTER(c_float)]
+libtrck.psmove_tracker_get_size.argtypes             = [c_void_p, c_int, c_int]
+libtrck.psmove_tracker_free.argtypes                 = [c_void_p]
