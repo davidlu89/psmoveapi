@@ -21,8 +21,10 @@ on the path.
 # ==========================================================
 class PSMove:
 
-	def __init__(self):
+	def __init__(self, id=None):
+		self.id      = id
 		self.version = 0x030001 # this is the current PSMove Version
+		self.obj     = None
 
 	def init(self):
 	    """ Initialize the library and check for the right version.
@@ -57,7 +59,8 @@ class PSMove:
 		"""
 		return libctrl.psmove_set_remote_config(config)
 
-	def count_connected(self):
+	@staticmethod
+	def count_connected():
 		""" \brief Get the number of available controllers
 
 			\return Number of controllers available (USB + Bluetooth + Remote)
@@ -74,7 +77,10 @@ class PSMove:
 		\return A new \ref PSMove handle, or \c NULL on error
 
 		"""
-		return libctrl.psmove_connect()
+		if self.id: 
+			self.obj = libctrl.psmove_connect_by_id(self.id)
+		else:
+			self.obj = libctrl.psmove_connect()
 
 	def connect_by_id(self, id):
 		""" \brief Connect to a specific PS Move controller
@@ -96,7 +102,7 @@ class PSMove:
 
 			\return A new \ref PSMove handle, or \c NULL on error
 		"""
-		return libctrl.psmove_connect_by_id(id)
+		self.obj = libctrl.psmove_connect_by_id(id)
 
 	def connection_type(self):
 		""" \brief Get the connection type of a PS Move controller
@@ -112,7 +118,7 @@ class PSMove:
 			\return \ref Conn_USB if the controller is connected via USB
 			\return \ref Conn_Unknown on error
 		"""
-		return libctrl.psmove_connection_type(self.move)
+		return libctrl.psmove_connection_type(self.obj)
 
 	def is_remote(self):
 		""" \brief Check if the controller is remote (\c moved) or local.
@@ -126,7 +132,7 @@ class PSMove:
 			\return \ref PSMove_False if the controller is connected locally
 			\return \ref PSMove_True if the controller is connected remotely
 		"""
-		return libctrl.psmove_is_remote(self.move)
+		return libctrl.psmove_is_remote(self.obj)
 
 	def get_serial(self):
 		""" \brief Get the serial number (Bluetooth MAC address) of a controller.
@@ -146,7 +152,7 @@ class PSMove:
 			\return The serial number of the controller. The caller must
 			        free() the result when it is not needed anymore.
 		"""
-		return libctrl.psmove_get_serial(self.move)
+		return libctrl.psmove_get_serial(self.obj)
 
 	def pair(self):
 		""" \brief Pair a controller connected via USB with the computer.
@@ -179,7 +185,7 @@ class PSMove:
 			\return \ref PSMove_True if the pairing was successful
 			\return \ref PSMove_False if the pairing failed
 		"""
-		return libctrl.psmove_pair(self.move)
+		return libctrl.psmove_pair(self.obj)
 
 	def pair_custom(self):
 		""" \brief Pair a controller connected via USB to a specific address.
@@ -193,7 +199,7 @@ class PSMove:
 			\return \ref PSMove_True if the pairing was successful
 			\return \ref PSMove_False if the pairing failed
 		"""
-		return libctrl.psmove_pair_custom(self.move, self.new_host_string)
+		return libctrl.psmove_pair_custom(self.obj, self.new_host_string)
 
 	def set_rate_limiting(self, enabled):
 		""" \brief Enable or disable LED update rate limiting.
@@ -212,7 +218,7 @@ class PSMove:
 			\param enabled \ref PSMove_True to enable rate limiting,
 			               \ref PSMove_False to disable
 		"""
-		return libctrl.psmove_set_rate_limiting(self.move, enabled)
+		return libctrl.psmove_set_rate_limiting(self.obj, enabled)
 
 	def set_leds(self, r, g, b):
 		""" \brief Set the RGB LEDs on the PS Move controller.
@@ -234,7 +240,7 @@ class PSMove:
 			\param g The green value (0..255)
 			\param b The blue value (0..255)
 		"""
-		return libctrl.psmove_set_leds(self.move, r, g, b)
+		return libctrl.psmove_set_leds(self.obj, r, g, b)
 
 	def set_led_pwm_frequency(self, freq):
 		""" \brief Set the PWM frequency used in dimming the RGB LEDs.
@@ -265,7 +271,7 @@ class PSMove:
 			\return \ref PSMove_True on success
 			\return \ref PSMove_False on error
 		"""
-		return libctrl.psmove_set_led_pwm_frequency(self.move, freq)
+		return libctrl.psmove_set_led_pwm_frequency(self.obj, freq)
 
 	def set_rumble(self):
 		""" \brief Set the rumble intensity of the PS Move controller.
@@ -288,7 +294,7 @@ class PSMove:
 			\param move A valid \ref PSMove handle
 			\param rumble The rumble intensity (0..255)
 		"""
-		return libctrl.psmove_set_rumble(self.move, rumble)
+		return libctrl.psmove_set_rumble(self.obj, rumble)
 
 	def update_leds(self):
 		""" \brief Send LED and rumble values to the controller.
@@ -310,7 +316,7 @@ class PSMove:
 			\return \ref Update_Ignored if the change was ignored (see psmove_set_rate_limiting())
 			\return \ref Update_Failed (= \c 0) on error
 		"""
-		return libctrl.psmove_update_leds(self.move)
+		return libctrl.psmove_update_leds(self.obj)
 
 	def poll(self):
 		""" \brief Read new sensor/button data from the controller.
@@ -353,7 +359,7 @@ class PSMove:
 
 			\param move A valid \ref PSMove handle
 		"""
-		return libctrl.psmove_poll(self.move)
+		return libctrl.psmove_poll(self.obj)
 
 	def get_ext_data(self):
 		""" \brief Get the extension device's data as reported by the Move.
@@ -367,7 +373,7 @@ class PSMove:
 			\return \ref PSMove_True on success
 			\return \ref PSMove_False on error
 		"""
-		return libctrl.psmove_get_ext_data(self.move, self.data)
+		return libctrl.psmove_get_ext_data(self.obj, self.data)
 
 	def send_ext_data(self, data, length):
 		""" \brief Send data to a connected extension device.
@@ -379,7 +385,7 @@ class PSMove:
 			\return \ref PSMove_True on success
 			\return \ref PSMove_False on error
 		"""
-		return libctrl.psmove_send_ext_data(self.move, data, length)
+		return libctrl.psmove_send_ext_data(self.obj, data, length)
 
 	def get_buttons(self):
 		""" \brief Get the current button states from the controller.
@@ -406,7 +412,7 @@ class PSMove:
 
 			\return A bit field of \ref PSMove_Button states
 		"""
-		return libctrl.psmove_get_buttons(self.move)
+		return libctrl.psmove_get_buttons(self.obj)
 
 	def get_button_events(self):
 		""" \brief Get new button events since the last call to this fuction.
@@ -441,7 +447,7 @@ class PSMove:
 			\param pressed Pointer to store a bitfield of new press events \c NULL
 			\param released Pointer to store a bitfield of new release events \c NULL
 		"""
-		return libctrl.psmove_get_button_events(self.move, self.pressed, self.released)
+		return libctrl.psmove_get_button_events(self.obj, self.pressed, self.released)
 
 	def is_ext_connected(self):
 		""" \brief Check if an extension device is connected to the controller.
@@ -451,7 +457,7 @@ class PSMove:
 			\return \ref PSMove_True if an extension device is connected
 			\return \ref PSMove_False if no extension device is connected or in case of an error
 		"""
-		return libctrl.psmove_is_ext_connected(self.move)
+		return libctrl.psmove_is_ext_connected(self.obj)
 
 	def get_ext_device_info(self):
 		""" \brief Get information from an extension device connected to the controller.
@@ -466,7 +472,7 @@ class PSMove:
 			\return \ref PSMove_True on success
 			\return \ref PSMove_False on error
 		"""
-		return libctrl.psmove_get_ext_device_info(self.move, self.info)
+		return libctrl.psmove_get_ext_device_info(self.obj, self.info)
 
 	def get_battery(self):
 		""" \brief Get the battery charge level of the controller.
@@ -482,7 +488,7 @@ class PSMove:
 			\param move A valid \ref PSMove handle
 			\return A \ref PSMove_Battery_Level (\ref Batt_CHARGING when charging)
 		"""
-		return libctrl.psmove_get_battery(self.move)
+		return libctrl.psmove_get_battery(self.obj)
 
 	def get_temperature(self):
 		""" \brief Get the current raw device temperature reading of the
@@ -497,7 +503,7 @@ class PSMove:
 
 			\return The raw temperature sensor reading
 		"""
-		return libctrl.psmove_get_temperature(self.move)
+		return libctrl.psmove_get_temperature(self.obj)
 
 	def get_temperature_in_celsius(self):
 		""" \brief Get the current device temperature reading in deg.
@@ -521,7 +527,7 @@ class PSMove:
 
 			\return The temperature sensor reading in deg. Celsius
 		"""
-		return libctrl.psmove_get_temperature_in_celsius(self.move)
+		return libctrl.psmove_get_temperature_in_celsius(self.obj)
 
 	def get_trigger(self):
 		""" \brief Get the value of the PS Move analog trigger.
@@ -552,7 +558,7 @@ class PSMove:
 			\return 1-254 when the trigger is partially pressed
 			\return 255 if the trigger is fully pressed
 		"""
-		return libctrl.psmove_get_trigger(self.move)
+		return libctrl.psmove_get_trigger(self.obj)
 
 	def get_accelerometer(self, ax, ay, az):
 		""" \brief Get the raw accelerometer reading from the PS Move.
@@ -569,7 +575,7 @@ class PSMove:
 			\param ay Pointer to store the raw Y axis reading, or \c NULL
 			\param az Pointer to store the raw Z axis reading, or \c NULL
 		"""
-		return libctrl.psmove_get_accelerometer(self.move, ax, ay, az)
+		return libctrl.psmove_get_accelerometer(self.obj, ax, ay, az)
 
 	def get_gyroscope(self, gx, gy, gz):
 		""" \brief Get the raw gyroscope reading from the PS Move.
@@ -586,7 +592,7 @@ class PSMove:
 			\param gy Pointer to store the raw Y axis reading, or \c NULL
 			\param gz Pointer to store the raw Z axis reading, or \c NULL
 		"""
-		return libctrl.psmove_get_gyroscope(self.move, gx, gy, gz)
+		return libctrl.psmove_get_gyroscope(self.obj, gx, gy, gz)
 
 	def get_magnetometer(self, mx, my, mz):
 		""" \brief Get the raw magnetometer reading from the PS Move.
@@ -608,7 +614,7 @@ class PSMove:
 			\param my Pointer to store the raw Y axis reading, or \c NULL
 			\param mz Pointer to store the raw Z axis reading, or \c NULL
 		"""
-		return libctrl.psmove_get_magnetometer(self.move, mx, my, mz)
+		return libctrl.psmove_get_magnetometer(self.obj, mx, my, mz)
 
 	def get_accelerometer_frame(self, frame, ax, ay, az):
 		""" \brief Get the calibrated accelerometer values (in g) from the controller.
@@ -642,7 +648,7 @@ class PSMove:
 			\param ay Pointer to store the Y axis reading, or \c NULL
 			\param az Pointer to store the Z axis reading, or \c NULL
 		"""
-		return libctrl.psmove_get_accelerometer_frame(self.move, frame, ax, ay, az)
+		return libctrl.psmove_get_accelerometer_frame(self.obj, frame, ax, ay, az)
 
 	def get_gyroscope_frame(self, frame, gx, gy, gz):
 		""" \brief Get the calibrated gyroscope values (in rad/s) from the controller.
@@ -674,7 +680,7 @@ class PSMove:
 			\param gy Pointer to store the Y axis reading, or \c NULL
 			\param gz Pointer to store the Z axis reading, or \c NULL
 		"""
-		return libctrl.psmove_get_gyroscope_frame(self.move, frame, gx, gy, gz)
+		return libctrl.psmove_get_gyroscope_frame(self.obj, frame, gx, gy, gz)
 
 	def get_magnetometer_vector(self, mx, my, mz):
 		""" \brief Get the normalized magnetometer vector from the controller.
@@ -693,7 +699,7 @@ class PSMove:
 			\param my Pointer to store the Y axis reading, or \c NULL
 			\param mz Pointer to store the Z axis reading, or \c NULL
 		"""
-		return libctrl.psmove_get_magnetometer_vector(self.move, mx, my, mz)
+		return libctrl.psmove_get_magnetometer_vector(self.obj, mx, my, mz)
 
 	def has_calibration(self):
 		""" \brief Check if calibration is available on this controller.
@@ -714,7 +720,7 @@ class PSMove:
 
 			\return \ref PSMove_True if calibration is supported, \ref PSMove_False otherwise
 		"""
-		return libctrl.psmove_has_calibration(self.move)
+		return libctrl.psmove_has_calibration(self.obj)
 
 	def dump_calibration(self):
 		""" \brief Dump the calibration information to stdout.
@@ -728,7 +734,7 @@ class PSMove:
 
 			\param move A valid \ref PSMove handle
 		"""
-		return libctrl.psmove_dump_calibration(self.move)
+		return libctrl.psmove_dump_calibration(self.obj)
 
 	def enable_orientation(self, enabled):
 		""" \brief Enable or disable orientation tracking.
@@ -745,7 +751,7 @@ class PSMove:
 			\param move A valid \ref PSMove handle
 			\param enabled \ref PSMove_True to enable orientation tracking, \ref PSMove_False to disable
 		"""
-		return libctrl.psmove_enable_orientation(self.move, enabled)
+		return libctrl.psmove_enable_orientation(self.obj, enabled)
 
 	def has_orientation(self):
 		""" \brief Check if orientation tracking is available for this controller.
@@ -765,7 +771,7 @@ class PSMove:
 
 			\return \ref PSMove_True if calibration is supported, \ref PSMove_False otherwise
 		"""
-		return libctrl.psmove_has_orientation(self.move)
+		return libctrl.psmove_has_orientation(self.obj)
 
 	def get_orientation(self, w, x, y, z):
 		""" \brief Get the current orientation as quaternion.
@@ -786,7 +792,7 @@ class PSMove:
 			\param y A pointer to store the y part of the orientation quaternion
 			\param z A pointer to store the z part of the orientation quaternion
 		"""
-		return libctrl.psmove_get_orientation(self.move, w, x, y, z)
+		return libctrl.psmove_get_orientation(self.obj, w, x, y, z)
 
 	def reset_orientation(self):
 		""" \brief Reset the current orientation quaternion.
@@ -802,7 +808,7 @@ class PSMove:
 
 			\param move A valid \ref PSMove handle
 		"""
-		return libctrl.psmove_reset_orientation(self.move)
+		return libctrl.psmove_reset_orientation(self.obj)
 
 	def get_angles(self, xAngle, yAngle, zAngle):
 		""" \brief Get the Euler angles of the controller.
@@ -819,7 +825,7 @@ class PSMove:
 			\param yAngle A pointer to store the yAngle
 			\param zAngle A pointer to store the zAngle
 		"""
-		return libctrl.psmove_get_angles(self.move, xAngle, yAngle, zAngle)
+		return libctrl.psmove_get_angles(self.obj, xAngle, yAngle, zAngle)
 
 	def reset_magnetometer_calibration(self):
 		""" \brief Reset the magnetometer calibration state.
@@ -829,7 +835,7 @@ class PSMove:
 
 			\ref move A valid \ref PSMove handle
 		"""
-		return libctrl.psmove_reset_magnetometer_calibration(self.move)
+		return libctrl.psmove_reset_magnetometer_calibration(self.obj)
 
 	def save_magnetometer_calibration(self):
 		""" \brief Save the magnetometer calibration values.
@@ -839,7 +845,7 @@ class PSMove:
 
 			\param move A valid \ref PSMove handle
 		"""
-		return libctrl.psmove_save_magnetometer_calibration(self.move)
+		return libctrl.psmove_save_magnetometer_calibration(self.obj)
 
 	def get_magnetometer_calibration_range(self):
 		""" \brief Return the raw magnetometer calibration range.
@@ -853,7 +859,7 @@ class PSMove:
 
 			\return The smallest raw sensor range difference of all three axes
 		"""
-		return libctrl.psmove_get_magnetometer_calibration_range(self.move)
+		return libctrl.psmove_get_magnetometer_calibration_range(self.obj)
 
 	def disconnect(self):
 		""" \brief Disconnect from the PS Move and release resources.
@@ -870,7 +876,7 @@ class PSMove:
 
 			\param move A valid \ref PSMove handle (which will be invalid after this call)
 		"""
-		return libctrl.psmove_disconnect(self.move)
+		return libctrl.psmove_disconnect(self.obj)
 
 	def reinit(self):
 		""" \brief Reinitialize the library.
@@ -974,9 +980,13 @@ class PSMove:
 class PSMoveTracker:
 
 	def __init__(self):
+
 		self.tracker = self.new()
 		if not self.tracker: print "Could not init PSMoveTracker.\n"
 
+		self.xcm = c_float()
+		self.ycm = c_float()
+		self.zcm = c_float()
 
 	def new(self):
 		""" \brief Create a new PS Move Tracker instance and open the camera
@@ -1004,7 +1014,7 @@ class PSMoveTracker:
 		"""
 		return libtrck.psmove_tracker_new_with_camera(self.camera)
 
-	def set_auto_update_leds(self):
+	def set_auto_update_leds(self, move):
 		""" \brief Configure if the LEDs of a controller should be auto-updated
 		
 		If auto-update is enabled (the default), the tracker will set and
@@ -1019,7 +1029,7 @@ class PSMoveTracker:
 		                        the tracker, \ref PSMove_False if the user
 		                        will take care of updating the LEDs
 		"""
-		return libtrck.psmove_tracker_set_auto_update_leds(self.tracker, self.move, auto_update_leds)
+		return libtrck.psmove_tracker_set_auto_update_leds(self.tracker, move.obj, auto_update_leds)
 
 	def get_auto_update_leds(self, move):
 		""" \brief Check if the LEDs of a controller are updated automatically
@@ -1033,7 +1043,7 @@ class PSMoveTracker:
 		\return \ref PSMove_True if the controller's LEDs are set to be
 		        updated automatically, \ref PSMove_False otherwise
 		"""
-		return libtrck.psmove_tracker_get_auto_update_leds(self.tracker, move)
+		return libtrck.psmove_tracker_get_auto_update_leds(self.tracker, move.obj)
 
 	def set_dimming(self, dimming):
 		""" \brief Set the LED dimming value for all controller
@@ -1110,7 +1120,7 @@ class PSMoveTracker:
 		\param enabled \ref PSMove_True to mirror the image horizontally,
 		               \ref PSMove_False to leave the image as-is (default)
 		"""
-		return libtrck.psmove_tracker_set_mirror(self.tracker, enabled)
+		return libtrck.psmove_tracker_set_mirror(self.tracker, 1 if enabled else 0)
 
 	def get_mirror(self):
 		""" \brief Query the current camera image mirroring state
@@ -1138,9 +1148,9 @@ class PSMoveTracker:
 		\return \ref Tracker_CALIBRATED if calibration succeeded
 		\return \ref Tracker_CALIBRATION_ERROR if calibration failed
 		"""
-		return libtrck.psmove_tracker_enable(self.tracker, move)
+		return libtrck.psmove_tracker_enable(self.tracker, move.obj)
 
-	def enable_with_color(self, r, g, b):
+	def enable_with_color(self, move, r, g, b):
 		""" \brief Enable tracking with a custom sphere color
 
 		This function does basically the same as psmove_tracker_enable(),
@@ -1158,9 +1168,9 @@ class PSMoveTracker:
 		\return \ref Tracker_CALIBRATED if calibration succeeded
 		\return \ref Tracker_CALIBRATION_ERROR if calibration failed
 		"""
-		return libtrck.psmove_tracker_enable_with_color(self.tracker, self.move, r, g, b)
+		return libtrck.psmove_tracker_enable_with_color(self.tracker, move.obj, r, g, b)
 
-	def disable(self):
+	def disable(self, move):
 		""" \brief Disable tracking of a motion controller
 
 		If the \ref PSMove instance was never enabled, this function
@@ -1170,9 +1180,9 @@ class PSMoveTracker:
 		\param tracker A valid \ref PSMoveTracker handle
 		\param move A valid \ref PSMove handle
 		"""
-		return libtrck.psmove_tracker_disable(self.tracker, self.move)
+		return libtrck.psmove_tracker_disable(self.tracker, move.obj)
 
-	def get_color(self, r, g, b):
+	def get_color(self, move, r, g, b):
 		""" \brief Get the desired sphere color of a motion controller
 
 		Get the sphere color of the controller as it is set using
@@ -1190,9 +1200,9 @@ class PSMoveTracker:
 		        if the controller is not enabled of calibration has not
 		        completed yet.
 		"""
-		return libtrck.psmove_tracker_get_color(self.tracker, self.move, r, g, b)
+		return libtrck.psmove_tracker_get_color(self.tracker, move.obj, r, g, b)
 
-	def get_camera_color(self, r, g, b):
+	def get_camera_color(self, move, r, g, b):
 		""" \brief Get the sphere color of a controller in the camera image
 
 		Get the sphere color of the controller as it currently
@@ -1210,9 +1220,9 @@ class PSMoveTracker:
 		        if the controller is not enabled of calibration has not
 		        completed yet.
 		"""
-		return libtrck.psmove_tracker_get_camera_color(self.tracker, self.move, r, g, b)
+		return libtrck.psmove_tracker_get_camera_color(self.tracker, move.obj, r, g, b)
 
-	def set_camera_color(self, r, g, b):
+	def set_camera_color(self, move, r, g, b):
 		""" \brief Set the sphere color of a controller in the camera image
 
 		This function should only be used in special situations - it is
@@ -1232,9 +1242,9 @@ class PSMoveTracker:
 		        if the controller is not enabled of calibration has not
 		        completed yet.
 		"""
-		return libtrck.psmove_tracker_set_camera_color(self.tracker, self.move, r, g, b)
+		return libtrck.psmove_tracker_set_camera_color(self.tracker, move.obj, r, g, b)
 
-	def get_status(self):
+	def get_status(self, move):
 		""" \brief Query the tracking status of a motion controller
 
 		This function returns the current tracking status (or calibration
@@ -1245,7 +1255,7 @@ class PSMoveTracker:
 
 		\return One of the \ref PSMoveTracker_Status values
 		"""
-		return libtrck.psmove_tracker_get_status(self.tracker, self.move)
+		return libtrck.psmove_tracker_get_status(self.tracker, move.obj)
 
 	def update_image(self):
 		""" \brief Retrieve the next image from the camera
@@ -1275,7 +1285,7 @@ class PSMoveTracker:
 
 		\return Nonzero if tracking was successful, zero otherwise
 		"""
-		return libtrck.psmove_tracker_update(self.tracker, move)
+		return libtrck.psmove_tracker_update(self.tracker, move.obj)
 
 	def annotate(self):
 		""" \brief Draw debugging information onto the current camera image
@@ -1329,7 +1339,7 @@ class PSMoveTracker:
 		# ADDAPI PSMoveTrackerRGBImage
 		return libtrck.psmove_tracker_get_image(self.tracker)
 
-	def get_position(self, x, y, radius):
+	def get_position(self, move, x, y, radius):
 		""" \brief Get the current pixel position and radius of a tracked controller
 
 		This function obtains the pixel position and radius of a controller in the
@@ -1343,9 +1353,9 @@ class PSMoveTracker:
 
 		\return The age of the sensor reading in milliseconds, or -1 on error
 		"""
-		return libtrck.psmove_tracker_get_position(self.tracker, self.move, x, y, radius)
+		return libtrck.psmove_tracker_get_position(self.tracker, move.obj, x, y, radius)
 
-	def get_location(self, move, xcm, ycm, zcm):
+	def get_location(self, move):
 		""" \brief Get the current 3D location of a tracked controller
 
 		This function obtains the location of a controller in the
@@ -1359,7 +1369,12 @@ class PSMoveTracker:
 
 		\return The age of the sensor reading in milliseconds, or -1 on error
 		"""
-		return libtrck.psmove_tracker_get_location(self.tracker, move, xcm, ycm, zcm)
+		if self.tracker:
+			self.update(move)
+			libtrck.psmove_tracker_get_location(self.tracker, move.obj, byref(self.xcm), byref(self.ycm), byref(self.zcm))
+			return self.xcm.value, self.ycm.value, self.zcm.value
+		else:
+			return None, None, None
 
 	def get_size(self, width, height):
 		""" \brief Get the camera image size for the tracker
@@ -1507,7 +1522,7 @@ libtrck.psmove_tracker_update.restype               = c_int
 libtrck.psmove_tracker_get_frame.restype            = c_void_p
 libtrck.psmove_tracker_get_image.restype            = c_int
 libtrck.psmove_tracker_get_position.restype         = c_int
-libtrck.psmove_tracker_get_location.restype         = c_int
+# libtrck.psmove_tracker_get_location.restype         = c_int
 # libtrck.psmove_tracker_get_size.restype           = c_void
 # libtrck.psmove_tracker_free.restype               = c_void
 
